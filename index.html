@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미션 어드밴트 캘린더</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* 리소그래프 잉크 */
+  --paper:#F6F3EC;
+  --paper-2:#EAE5DA;
+  --ink:#24262B;
+  --pink:#FF48B0;       /* Fluorescent Pink */
+  --green:#00A95C;      /* Green */
+  --blue:#0078BF;       /* Blue */
+  --yellow:#FFE800;     /* Yellow */
+  --red:var(--pink);
+  --white:#FFFFFF;
+  --soft:rgba(36,38,43,.55);
+  --gray:#55585E;
+  --charcoal:#6E7076;    /* 입력칸 테두리 */       /* 짙은 회색: 별 아이콘, 달성률, 연도 */
+  --line:rgba(36,38,43,.8);
+  --body:'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--body);font-weight:400;font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;letter-spacing:-.005em;
+}
+/* 리소 종이 그레인 */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:300;
+  opacity:.12;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.18  0 0 0 0 0.15  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+button{font-family:inherit;cursor:pointer;color:inherit}
+input,textarea{font-family:inherit;font-size:16px}
+.view{display:none}
+.view.on{display:block;animation:fadein .25s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.wrap{max-width:440px;margin:0 auto;padding:0 24px}
+.wrap > .view.on{padding:28px 0 48px}
+
+/* ---------- 메인: 한 화면 ---------- */
+#v-home.on{
+  display:flex;flex-direction:column;
+  height:100vh;height:100svh;
+  max-width:440px;margin:0 auto;
+  padding:max(18px, env(safe-area-inset-top)) 24px max(16px, env(safe-area-inset-bottom));
+}
+.top{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--gray)}
+.rate{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:4px 0;font:inherit;letter-spacing:.04em;color:var(--gray)}
+.rate svg{display:block}
+.home-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.tree-box{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:10px 0 4px}
+.tree-box svg{width:100%;height:100%;display:block;overflow:visible}
+.legend{display:flex;justify-content:center;gap:18px;font-size:11px;color:var(--soft)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.future{border:1px solid var(--gray)}
+.dot.open,.dot.done{border:0}
+.dot.open{background:var(--open);opacity:.9}
+.dot.done{background:var(--done);opacity:.9}
+.home-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px}
+.link .link-star{margin-right:8px;vertical-align:-1px;fill:var(--gray)}
+.link{background:none;border:0;padding:4px 0;font:inherit;color:var(--ink);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}
+.link.soft{color:var(--soft);font-size:12px}
+
+/* ---------- 트리 ---------- */
+.orn{cursor:pointer}
+.orn .hit{fill:transparent}
+.orn:hover .body{filter:brightness(1.08)}
+.orn:focus{outline:none}
+.orn:focus-visible .body{stroke:var(--ink);stroke-width:1.5}
+.orn .num{font-family:var(--mono);font-weight:500;font-size:8px;pointer-events:none;letter-spacing:-.02em}
+
+/* ---------- 버튼 ---------- */
+.btn{
+  border:0;background:color-mix(in srgb, var(--b1) 82%, transparent);color:var(--b1-fg);
+  font-weight:500;font-size:15px;padding:12px 10px;border-radius:2px;
+  transition:opacity .15s ease;
+}
+.btn:active{opacity:.8}
+.btn.green{background:color-mix(in srgb, var(--b2) 82%, transparent);color:var(--b2-fg)}
+.btn.light{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.block{width:100%;display:block}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ---------- 서브 화면 ---------- */
+.back{background:none;border:0;font-family:var(--body);font-size:12.5px;letter-spacing:0;padding:0;margin-bottom:28px;color:var(--soft)}
+.back::before{content:"← "}
+.h2{font-weight:500;font-size:24px;line-height:1.3;margin:0 0 6px;letter-spacing:-.02em}
+.lead{color:var(--soft);margin:0 0 28px;font-size:13.5px}
+.card{border-top:1px solid var(--line);padding:22px 0 0;margin-bottom:28px}
+.card.paper{border-top:0;padding-top:0}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:12px;color:var(--soft);margin-bottom:6px}
+.field input,.field textarea{
+  width:100%;border:1px solid rgba(36,38,43,.14);background:transparent;padding:11px 12px;border-radius:2px;color:var(--ink)
+}
+.field textarea{min-height:120px;resize:vertical;line-height:1.55}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field input[readonly]{background:var(--paper-2);border-color:transparent;letter-spacing:.18em;font-weight:500;cursor:not-allowed}
+.field .help{font-size:11.5px;color:var(--soft);margin-top:5px;display:flex;justify-content:space-between}
+.chip{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink);background:var(--star);padding:0 5px}
+.mine{border-top:1px solid var(--line);padding:16px 0 18px}
+.mine:last-child{border-bottom:1px solid var(--line)}
+.mine .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12.5px}
+.mine .nick{color:var(--soft)}
+.mine .label{font-weight:500}
+.mine .txt{white-space:pre-wrap;word-break:break-word;font-size:15px}
+.mine .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.mine .actions .btn{font-size:13px;padding:7px 16px}
+.mine .field{margin-bottom:12px}
+
+/* ---------- 지난 캘린더 ---------- */
+.years{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.years button{
+  background:none;border:0;border-bottom:1px solid var(--line);text-align:left;
+  padding:18px 0;font-size:20px;font-weight:300;display:flex;justify-content:space-between;align-items:center;letter-spacing:-.01em
+}
+.years button::after{content:"→";font-size:14px;color:var(--soft)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.mbox{border-top:1px solid var(--line);padding:9px 0 16px;min-height:78px}
+.mbox .d{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;margin-bottom:4px}
+.mbox .d{color:var(--soft)}
+.mbox .d::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.mbox:nth-child(odd) .d::before{background:var(--open)}
+.mbox:nth-child(even) .d::before{background:var(--tree)}
+.mbox .t{font-size:13.5px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+.mbox.star{grid-column:1 / -1;border-bottom:1px solid var(--line)}
+.mbox.star .d{color:var(--ink)}
+.mbox.star .d::before{background:var(--star)}
+
+/* ---------- 관리자 ---------- */
+.ini-list{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0}
+.ini-tag{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:2px;padding:4px 6px 4px 10px;font-weight:500;letter-spacing:.12em;font-size:14px}
+.ini-tag small{font-family:var(--mono);font-weight:400;letter-spacing:0;color:var(--soft);font-size:11px}
+.ini-tag button{border:0;background:none;color:var(--soft);font-size:13px;line-height:1;padding:2px}
+.inline{display:flex;gap:8px;align-items:stretch}
+.inline .field{flex:1;margin:0}
+.inline .btn{padding:0 18px;font-size:14px}
+.stat-num{font-size:28px;font-weight:300;line-height:1.2}
+.stat-num small{font-family:var(--body);font-size:12px;color:var(--soft);margin-left:4px}
+.bar{height:3px;background:var(--paper-2);margin:10px 0 8px;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+
+/* ---------- 모달 ---------- */
+.overlay{
+  position:fixed;inset:0;z-index:100;background:rgba(30,30,28,.35);
+  display:none;align-items:flex-end;justify-content:center;padding:12px;
+}
+.overlay.on{display:flex;animation:fadein .18s ease}
+@media (min-width:560px){.overlay{align-items:center}}
+.sheet{background:var(--paper);width:100%;max-width:420px;max-height:88vh;overflow:auto;border-radius:3px;position:relative}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;position:sticky;top:0;background:var(--paper);z-index:1}
+.sheet-head .t{font-size:14px;font-weight:500;font-family:var(--body);letter-spacing:0;display:inline-flex;align-items:center;gap:8px}
+.sheet-head .t::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--tree)}
+.sheet-head.red .t::before{background:var(--open)}
+.sheet-head.yellow .t::before{background:var(--star)}
+.sheet-head button{background:none;border:0;font-size:18px;line-height:1;padding:4px;color:var(--soft)}
+.sheet-body{padding:18px 20px 24px}
+.mission-paper,.letter-wrap{
+  --lh:34px;--mx:22px;--top:12px;--bot:46px;--fold:30px;
+  --rule:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) - 1px), rgba(36,38,43,.14) calc(var(--lh) - 1px), rgba(36,38,43,.14) var(--lh));
+  position:relative;background-color:#FFFFFF;border-radius:2px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--fold)),calc(100% - var(--fold)) 100%,0 100%);
+}
+/* 오른쪽 아래 접힌 귀퉁이: 회색 리소 망점 + 살짝 어긋난 두 번째 판 */
+.mission-paper::after,.letter-wrap::after{
+  content:"";position:absolute;right:0;bottom:0;width:var(--fold);height:var(--fold);pointer-events:none;
+  clip-path:polygon(0 0,100% 0,0 100%);
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'><filter id='i' x='-10%' y='-10%' width='120%' height='120%'><feTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='2' seed='7' result='n'/><feColorMatrix in='n' type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.7 0 0 0 1.22' result='m'/><feComposite in='SourceGraphic' in2='m' operator='in'/></filter><g filter='url(%23i)' style='mix-blend-mode:multiply'><rect width='30' height='30' fill='%23C9CBCE'/><polygon points='2,0 30,0 2,28' fill='%23A3A5A9' opacity='.75'/></g></svg>") 0 0 / 100% 100%;
+}
+.mission-paper{padding:var(--top) var(--mx) var(--bot);
+  background-image:var(--rule);background-repeat:no-repeat;
+  background-position:var(--mx) var(--top);background-size:calc(100% - var(--mx)*2) calc(100% - var(--top) - var(--bot))}
+.mission-paper .from{font-size:13px;color:var(--soft);margin:0;line-height:var(--lh);height:var(--lh)}
+.mission-paper .m{font-size:17px;font-weight:500;line-height:var(--lh);white-space:pre-wrap;word-break:break-word;letter-spacing:-.01em;min-height:calc(var(--lh) * 2)}
+.mission-paper .m.typing::after{content:"";display:inline-block;width:1px;height:1.1em;margin-left:2px;vertical-align:-3px;background:var(--ink);animation:blink .9s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+/* 편지지 입력칸: 테두리 없이 줄 위에 쓰는 느낌, 내용만큼 늘어남 */
+.letter-wrap textarea.letter{display:block;width:100%;border:0;border-radius:0;background-color:transparent;
+  padding:var(--top) var(--mx) var(--bot);line-height:var(--lh);font-size:16px;resize:none;overflow:hidden;caret-color:var(--pink);
+  min-height:calc(var(--lh) * 5 + var(--top) + var(--bot));
+  background-image:var(--rule);background-repeat:no-repeat;
+  background-position:var(--mx) var(--top);background-size:calc(100% - var(--mx)*2) calc(100% - var(--top) - var(--bot))}
+.letter-wrap textarea.letter:focus{outline:none;border:0}
+/* 미션과 실행 결과 사이: 크레용으로 그린 전구 줄 */
+.garland{display:block;width:calc(100% + 40px);height:auto;aspect-ratio:340/66;margin:12px -20px 0;overflow:visible}
+.sec-title.no-rule{border-top:0;padding-top:0;margin-top:6px}
+.mission-paper .from b{color:var(--ink);font-weight:500}
+.sec-title{font-family:var(--body);font-size:12px;font-weight:500;letter-spacing:0;color:var(--soft);margin:26px 0 10px;padding-top:12px;border-top:1px solid var(--line)}
+.card > .sec-title:first-child{margin-top:0;padding-top:0;border-top:0}
+.result-img{width:100%;display:block;margin-bottom:10px;border-radius:2px;background:var(--paper-2)}
+.result-txt{white-space:pre-wrap;word-break:break-word;margin:0}
+.muted{color:var(--soft);font-size:13.5px}
+.empty-note{color:var(--soft);font-size:13.5px}
+.dialog-msg{font-size:15px;font-weight:500;text-align:center;margin:8px 0 22px;white-space:pre-line}
+.file-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.file-row label.btn{font-size:13px;padding:7px 14px;display:inline-block;cursor:pointer}
+.file-row input{display:none}
+.preview{max-width:100%;margin-top:10px;display:block;border-radius:2px}
+.check{display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.thumbs:empty{display:none}
+.thumb{position:relative;aspect-ratio:1;background:var(--paper-2);border-radius:2px;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb button{position:absolute;top:3px;right:3px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(36,38,43,.75);color:var(--paper);font-size:11px;line-height:1;padding:0}
+details.fold{border-top:1px solid var(--line);margin-bottom:28px}
+details.fold summary{list-style:none;cursor:pointer;padding:16px 0;font-family:var(--body);font-size:12px;font-weight:500;letter-spacing:0;color:var(--soft);text-transform:uppercase;display:flex;justify-content:space-between}
+details.fold summary::-webkit-details-marker{display:none}
+details.fold summary::after{content:"펼치기 +";letter-spacing:.04em;text-transform:none;font-family:var(--body)}
+details.fold[open] summary::after{content:"접기 −"}
+.mlist{width:100%;border-collapse:collapse;font-size:13px;line-height:1.5}
+.mlist th{text-align:left;font-weight:400;color:var(--soft);font-size:11px;padding:0 8px 6px 0;border-bottom:1px solid var(--line)}
+.mlist td{padding:8px 8px 8px 0;vertical-align:top;border-bottom:1px solid rgba(36,38,43,.12);word-break:break-word}
+.mlist tr.first td{border-top:1px solid rgba(36,38,43,.35)}
+.mlist td.ini{font-weight:500;letter-spacing:.1em;white-space:nowrap}
+.mlist td:nth-child(2){white-space:nowrap;color:var(--soft)}
+.owner-form{border-top:1px solid var(--line);margin-top:18px;padding-top:4px}
+.spinner{display:inline-block;width:13px;height:13px;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);opacity:0;
+  background:var(--ink);color:var(--paper);padding:9px 16px;font-size:13px;border-radius:2px;z-index:200;
+  transition:all .25s ease;pointer-events:none
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 데모 전용 (실서비스에선 안 보임) */
+.demo-pill[hidden],[hidden]{display:none !important}
+.demo-pill{position:fixed;left:50%;transform:translateX(-50%);top:8px;z-index:250;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--soft);display:flex;gap:6px;align-items:center;background:var(--paper);border:1px solid rgba(30,30,28,.2);border-radius:20px;padding:3px 4px 3px 10px}
+.demo-pill select{font:inherit;border:0;background:transparent;color:var(--ink)}
+.demo-pill button{font:inherit;border:0;background:none;color:var(--soft);padding:0 4px}
+</style>
+</head>
+<body>
+
+<div class="demo-pill" id="demoBar" hidden>
+  DEMO
+  <select id="demoDate" aria-label="데모 날짜">
+    <option value="2026-11-20">11.20</option>
+    <option value="2026-12-08" selected>12.08</option>
+    <option value="2026-12-25">12.25</option>
+  </select>
+  <button id="demoReset" title="데모 데이터 초기화">↺</button>
+</div>
+
+  <!-- ================= 메인 ================= -->
+  <section class="view on" id="v-home">
+    <div class="top">
+      <span id="kYear">2026</span>
+      <button class="rate" id="rate" aria-label="미션 달성률"><span id="rateFig" hidden></span><span id="rateNum">0%</span></button>
+    </div>
+
+    <div class="home-btns">
+      <button class="btn" id="goWrite">미션 쓰기</button>
+      <button class="btn green" id="goEdit">미션 수정하기</button>
+    </div>
+
+    <div class="tree-box">
+      <svg id="tree" viewBox="20 18 360 516" preserveAspectRatio="xMidYMid meet" role="img" aria-label="25개의 오너먼트가 달린 트리"></svg>
+    </div>
+    <div class="legend">
+      <span><i class="dot future"></i>아직</span>
+      <span><i class="dot open"></i>진행 중</span>
+      <span><i class="dot done"></i>완료</span>
+    </div>
+
+    <div class="home-foot">
+      <button class="link" id="goArchive"><svg class="link-star" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><polygon points="6.00,0.00 7.03,3.51 10.24,1.76 8.49,4.97 12.00,6.00 8.49,7.03 10.24,10.24 7.03,8.49 6.00,12.00 4.97,8.49 1.76,10.24 3.51,7.03 0.00,6.00 3.51,4.97 1.76,1.76 4.97,3.51"/></svg>지난 어드밴트 캘린더</button>
+      <button class="link soft" id="goAdmin">관리자</button>
+    </div>
+  </section>
+
+<div class="wrap">
+
+  <!-- ================= 미션 쓰기 ================= -->
+  <section class="view" id="v-write">
+    <button class="back" data-home>처음으로</button>
+    <h2 class="h2">미션 쓰기</h2>
+    <p class="lead">한 사람당 미션 두 개까지 쓸 수 있어요. 11월 30일까지 받아요.</p>
+
+    <div class="card" id="w-step1">
+      <div class="field">
+        <label for="w-ini">내 이니셜</label>
+        <input id="w-ini" placeholder="예: 김철수 → ㄱㅊㅅ" autocomplete="off" maxlength="6">
+        <div class="help"><span>이름 초성만 입력해 주세요</span></div>
+      </div>
+      <button class="btn block" id="w-next">다음</button>
+    </div>
+
+    <div class="card" id="w-step2" hidden>
+      <div class="field">
+        <label>이니셜</label>
+        <input id="w-ini-ro" readonly>
+      </div>
+      <div class="field">
+        <label for="w-nick">닉네임</label>
+        <input id="w-nick" maxlength="20" placeholder="예: 생강쿠키">
+      </div>
+      <div class="field">
+        <label for="w-text">미션</label>
+        <div class="letter-wrap"><textarea id="w-text" class="letter" maxlength="300"></textarea></div>
+        <div class="help"><span id="w-count-left"></span><span id="w-len">0 / 300</span></div>
+      </div>
+      <button class="btn block" id="w-submit">미션 보내기</button>
+    </div>
+
+    <div class="card paper" id="w-done" hidden>
+      <p class="dialog-msg" id="w-done-msg">미션이 접수됐어요!</p>
+      <div class="btns">
+        <button class="btn" id="w-more">하나 더 쓰기</button>
+        <button class="btn light" data-home>처음으로</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 미션 수정 ================= -->
+  <section class="view" id="v-edit">
+    <button class="back" data-home>처음으로</button>
+    <h2 class="h2">미션 수정하기</h2>
+    <p class="lead">내가 쓴 미션을 확인하고 고칠 수 있어요. 수정도 11월 30일까지만 돼요.</p>
+
+    <div class="card" id="e-step1">
+      <div class="field">
+        <label for="e-ini">내 이니셜</label>
+        <input id="e-ini" placeholder="예: ㄱㅊㅅ" autocomplete="off" maxlength="6">
+      </div>
+      <button class="btn green block" id="e-next">내 미션 보기</button>
+    </div>
+    <div id="e-list" hidden></div>
+  </section>
+
+  <!-- ================= 지난 캘린더 ================= -->
+  <section class="view" id="v-archive">
+    <button class="back" data-home>처음으로</button>
+    <h2 class="h2">지난 어드밴트 캘린더</h2>
+    <p class="lead">지금까지 받은 미션들이에요.</p>
+    <div class="years" id="years"></div>
+  </section>
+
+  <section class="view" id="v-year">
+    <button class="back" id="backYears">연도 목록</button>
+    <h2 class="h2" id="yearTitle"></h2>
+    <p class="lead" id="yearLead"></p>
+    <div class="grid2" id="yearGrid"></div>
+  </section>
+
+  <!-- ================= 관리자 ================= -->
+  <section class="view" id="v-admin">
+    <button class="back" data-home>처음으로</button>
+    <h2 class="h2">관리자</h2>
+    <div id="adm-login" class="card">
+      <div class="field">
+        <label for="adm-pw">비밀번호</label>
+        <input id="adm-pw" type="password" autocomplete="current-password">
+      </div>
+      <button class="btn block" id="adm-go">들어가기</button>
+    </div>
+    <div id="adm-panel" hidden>
+      <p class="lead">관리자 모드예요. 오너먼트를 누르면 실행 결과를 올리거나 고칠 수 있어요.</p>
+      <div class="card">
+        <div class="sec-title">미션 접수 현황</div>
+        <div id="adm-stats" class="muted">불러오는 중…</div>
+      </div>
+      <div class="card">
+        <div class="sec-title">미션 쓸 수 있는 사람 (이니셜)</div>
+        <div class="ini-list" id="adm-inis"></div>
+        <div class="inline" style="margin-top:16px">
+          <div class="field"><input id="adm-new" placeholder="이니셜 추가 (예: ㅂㅈㅎ)" maxlength="6"></div>
+          <button class="btn green" id="adm-add">추가</button>
+        </div>
+      </div>
+      <details class="fold" id="adm-fold">
+        <summary>미션 전체 내역</summary>
+        <div id="adm-list"></div>
+      </details>
+      <button class="btn light block" id="adm-out">관리자 모드 끄기</button>
+    </div>
+  </section>
+</div>
+
+<!-- 모달 -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+  <div class="sheet">
+    <div class="sheet-head" id="sheetHead"><span class="t" id="sheetTitle"></span><button id="sheetClose" aria-label="닫기">✕</button></div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   설정 — README 3단계를 보고 여기만 채우면 돼요.
+   firebase 값이 null이면 '데모 모드'로 동작해요 (이 브라우저에만 저장).
+   ===================================================================== */
+const CONFIG = {
+  YEAR: 2026,                               // 올해 연도 (firestore.rules의 연도와 같아야 해요)
+  OWNER_EMAIL: "",                          // 비워두세요. 관리자 아이디는 비밀번호로부터 자동으로 만들어져 이 파일에 드러나지 않아요
+  OWNER_PASSWORD_PREFIX: "",                // 실제 Firebase 비밀번호 = 이 값 + 화면에 입력한 비밀번호 (비밀번호 자체는 이 파일에 적지 않아요)
+  firebase: {                               // Firebase 콘솔의 firebaseConfig 객체
+    apiKey: "AIzaSyAOgIskSamdsk2zKOIYPgTXlJb8OBmEtx4",
+    authDomain: "advent-calendar-e174b.firebaseapp.com",
+    projectId: "advent-calendar-e174b",
+    storageBucket: "advent-calendar-e174b.firebasestorage.app",
+    messagingSenderId: "694759035930",
+    appId: "1:694759035930:web:40dd05adcd9ef34476eda3",
+    measurementId: "G-02B49ETSYY"
+  },
+  DEMO_PASSWORD_SHA256: "152a1b347a3c0f848a18a866d86d45e34989c7698849308f220cd4e684ccee30"   // 데모 모드 전용. 비밀번호 원문 대신 해시만 저장
+};
+
+/* 지난 어드밴트 캘린더 — 연도별로 1일~25일 미션을 순서대로 적어주세요. */
+const ARCHIVE = {
+  2023: ["크리스마스 컨셉 네일 받기", "길에서 구세군 보이면 기부하기", "연말이니까 책 한 권 읽기(나도 한 권 읽어볼게)", "크리스마스 기념 네일 자랑해주기~~~", "2024년에 이루고 & 하고 싶은 일 20가지 적어보기!!", "Watch Klaus the Christmas movie", "기부하고 싶은 곳을 정해서 10만원 이내의 금품을 기부하세요. 대신, 기부의 목적이 본인에게 의미가 있었으면 좋겠습니다. 봉사도 환영합니다~! 재능기부 가능!", "크리스마스 캐롤 메들리(3곡 이상) 부르고 동영상 찍어서 ㅎㅅㅎ 스토리 올려주기 :)♥︎", "맛있는 태국어 9강 공부하기", "안녕하세요 이건 내 기준 두 번째 미션 쪽지이지만 둘 중 어느 걸 먼저 뽑을지는 알 수 없군아 우린 방금 러브레터를 보고 젊은 후지이 이츠키에 깊은 감동을 받은 상태야. 그런 의미에서 오늘은 또 다른 일본 영화를 한 편 보면서 아늑한 시간을 보내보면 좋겠어요 이왕이면 겨울 느낌 낭낭한 영화면 더 어울리겠지요? 무얼 봤는지 알려주 그럼 이만!", "추억의 사진 한 장을 골라 그려보기(재료, 색깔 지정 없음)", "제일 좋아하는 or  최근에 먹고 싶었던 와인 & 그와 어울리는 안주로 즐거운 저녁 보내기! 와인 선택한 이유 + 왜 어울린다고 생각했는지(안주가) 스토리로 알려줘!", "무지막지하게 예쁜 딸이 엄마 디저트 사다주고(1개) 사진 찍어주기! (네가 사기!)", "한 번도 안 먹어본 파스타면으로 파스타 만들어 먹기(올해도 고생한 나에게 새로운 경험 먹여주기)", "D-10부터 하루 한 곡, 그 날의 캐롤 공유", "바나나푸딩 만들어 먹기", "제가 드리는 올해의 (12월) 퀘스트는요~! 간단한 담금주 만들어보기! 내년 우리 모임에서 같이 마셔요. 난 안주를 준비할게 ♡그럼 메리클♡", "2023년 한 해를 담은 사진들을(사진, 강점, 분위기 어떤 테마든 자유!) 게시물 or 스토리 형태로 남겨줘 연말을 담은 사진은 새로 찍어서 꼭 포함해주기! 너의 2023년이 어떤 느낌이었는지 궁금해~", "올해 바쁜 회사에서 고마웠던 사람에게 선물주기~(간식 정도면 very easy)", "망원동 책바에서 1984 + 초콜렛 플레이트 먹으면서 ㅇㅇ에게 23년도 마무리하는 편지 or 쪽지 쓰기♡", "카메라 들고 나가서 노을 보고 오기", "Bake Christmas cookies", "하이하이 ㅇㅇ가 주는 연말 퀘스트~~ ㅇㅇ이랑 ♡영상 통화하기♡ 보고 싶으니까", "※ 준비물: 시간, 목도리와 패딩, 돈, 배고픔, 볼펜. 🏠 → 🚌 → From \"00000\" To \"00000\" → 지도어플 이제 금지 →빵 냄새가 나는 쪽으로.. 보통 보폭 20 발자국, 고개 들어봐. \"BOKEH\" 발견하면 들어가기(*월요일이면 패스) → 미션 1. 당신이 좋아하는 과일이 들어간 메뉴 고르기 → 냠냠 ... → 길 건너 위치. 횡단보도를 건넜다면... 🐾 → 🥐 → ✉️ → 🍔🍗 → 🍺 → 4행 6열의 건물 3층 305호 → 미션 2. 고마운 사람을 생각하며 편지쓰기 → 왔던 길을 돌아... ✉️ 우체통에 넣고 길 건너기 → 🚌연희동 자치회관에서 \"7734, 7612, 7739, 8773\"을 타고 홍대입구역으로 가시오 → 🚊 ~신촌 ~ 이대 ~ 아현 ~ 충정로 ~ ❗️ 느낌표에서 하차! → 1번 출구로 나가면 10시 방면에 마지막 목적지 등장 → 미션 3. 산책하면서 한 해를 잘 보낸 자신에게 스스로 잘했다고 다독여주기~!! 반나절 동안 수고했습니다", "집에서 본인만의 오리지널 칵테일 만들어보고, 맛있으면 가족에게 제공하기(칵테일 주제: 본인다움) *제공할 시 왜 이 칵테일이 본인다움을 나타내는지 설명해야 함"],
+  2022: ["길고양이 사진기에 담기(폰카 ㄴㄴ) 그리고 이 사진 나 조", "끝내주는 와인 마시기", "입욕제 사서 욕조에 팡팡 풀고 거품 목욕하기 + 목욕하면서 드라마/영화 보기", "원데이 클래스 수강하기 → 다녀와서 자랑해줘!", "1년 동안 가장 잘한 일, 가장 후회하는 일, 내년에 가장 하고 싶은일 뭔지 말해주기", "유치한 넷플릭스 크리스마스 영화 2편 멈추지 말고 보기", "서울시 행정구역 외우기", "가족 스웨터 뜨기", "호두파이 또 만들기", "영화 이터널 선샤인 보면서 레드벨벳 케이크와 차 마시기", "자신에게 1년 동안 수고했다는 의미로 꽃다발 선물하기", "부모님과 동생에게 사랑한다고 전하기(소중한 사람들에게)", "스케이트 타기 + 미피 데리고 같이 다녀와", "Do volunteer work", "초코빵 굽든가 사든가 해서 동생 줘", "마들렌 구워라. 그리고 동생 줘", "크리스마스가 나오는(관련된) 영화/음악/공연 보고 감상평 남겨주기", "ㅇㅇ랑 레고트리 만들기 + 핫초코 마시면서", "뜨끈한 밀푀유나베를 먹으면서 좋아하는 사람한테 안부 문자 보내기(꼭 나 아니어도 됨)", "Find and read a novel called: Eleanor Oliphant Is Completely Fine", "이부자리 정리하기!", "크리스마스 기념 이브 or 당일 유튜브 업로드하기!!(테마: 크리스마스, 분량: 12:25 이상) 당신의 열쩡. 미션카드 현황을 기대합니다", "캐럴 8마디 작곡하기(또는 작사하기) 넌 할 수 있다! 노래부르기(는 개인 소장 가능)", "올해 찍은 예쁜 사진들로 2022 엽서 컬렉션 만들어주기", "크리스마스 장식품 하나 사서 크리스마스 분위기 내기!!! 방에 둬야 해!"],
+  2021: ["Amy Winehouse의 Help Yourself 듣기", "새해맞이 드림캐쳐 만들기", "지금까지 미션한 소감 5문장 이상 써서 스토리에 올리기", "산타할아버지께 편지 써서 거실에 숨겨놓기", "밴드부 추억이 담긴 노래에 맞춰 손으로 리듬 타며 춤춰주세요", "Make a plan for 2022 in terms of diet, health, work and self-development", "좋아하는 것들로 가득한 기깔나는 저녁을 먹기! 굳이 요리하지 않아도 됨!", "쇼핑 목록 작성", "ㅇㅇ이에게 편지쓰기", "엄동설한 속 직접 뽑은 면으로 라면 한 그릇", "3년 전 오늘 찍은 사진 스토리에 공유하기", "귀여운 진저쿠키랑 티타임하기(인증샷 필수 ★★★)", "방 안에서(문을 닫고) 엉덩이로 걸어보기(최소 6보 이상)", "나갈 때 양말 안 신기", "편의점 가서 지금까지 안 먹어본 술 사먹어보기", "크리스마스 트리가 보이는 카페나 레스토랑에서 인증샷 - 트리 1m 이상-", "이번 겨울엔 성공할 수 있을까 비프웰링턴", "파스타, 리조또 만들기", "주말 내내 진부한 크리스마스 영화 3편 연속으로 보기", "호두파이 만들기", "30분 동네 산책하고 보고 생각한 거 기록하기! 아무것도 안 해도 좋아!", "크리스마스날 먹을 메뉴 한 가지 이상 정해서 스토리에 공유하기", "포인세티아와 셀카 찍기", "크리스마스 오너먼트 쇼핑하기", "Zzz..."]
+};
+/* ===================================================================== */
+
+const TOTAL = 25, PER_PERSON = 2, MAX_PHOTOS = 3;
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const h = (tag, props={}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k,v] of Object.entries(props)) {
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null) el.append(c);
+  return el;
+};
+
+/* ---------- 시간 (한국 시간 기준) ---------- */
+const KST = 9 * 3600 * 1000;
+let demoNow = null;
+const now = () => demoNow ?? Date.now();
+const openAt = day => Date.UTC(CONFIG.YEAR, 11, day) - KST;      // 12월 day일 00:00 KST
+const DEADLINE = Date.UTC(CONFIG.YEAR, 11, 1) - KST;              // 11/30 24:00 KST
+const isOpen = day => now() >= openAt(day);
+const acceptOpen = () => now() < DEADLINE;
+
+/* ---------- 이니셜 ---------- */
+const normIni = s => (s || '').replace(/\s+/g, '');
+const validIni = s => /^[ㄱ-ㅎ]{2,4}$/.test(s);
+
+/* =====================================================================
+   데이터 계층 — 데모(localStorage) / Firebase
+   ===================================================================== */
+class AppError extends Error { constructor(code){ super(code); this.code = code; } }
+
+/* 관리자 로그인 아이디: 비밀번호를 아는 사람만 알 수 있게, 비밀번호에서 만든 값 (파일에 이메일을 적지 않음) */
+async function ownerEmail(pw){
+  if (CONFIG.OWNER_EMAIL) return CONFIG.OWNER_EMAIL;
+  return (await sha256('advent-admin:' + pw)).slice(0, 20) + '@mission-advent.app';
+}
+async function sha256(text){
+  try { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+  catch(e){ return ''; }
+}
+function makeDemoBackend(){
+  const KEY = 'advent-demo-v2';
+  let mem = null;
+  const seed = () => {
+    const people = [
+      ['ㄱㅊㅅ',[["산타할배","오늘 하루 존댓말로만 말하기"],["핫초코","오늘의 점심을 그림으로 그리기"]]],
+      ['ㅁㅅㅎ',[["루돌프","가장 오래 연락 안 한 친구에게 안부 문자 보내기"],["눈사람","출근길 하늘 사진 한 장 찍기"]]],
+      ['ㅈㅇㄹ',[["진저쿠키","한 번도 안 먹어본 메뉴 도전하기"],["썰매꾼","10분 동안 휴대폰 없이 산책하기"]]],
+      ['ㅎㄷㅇ',[["양말","오늘 만난 사람 한 명 칭찬하기"],["호두까기","손편지 한 장 쓰기"]]],
+      ['ㅅㅁㄱ',[["트리꼭대기","좋아하는 노래 한 곡 크게 따라 부르기"],["벙어리장갑","책 10쪽 읽고 한 줄 감상 남기기"]]],
+      ['ㄴㅈㅇ',[["겨울잠","밤 11시 전에 잠들기"],["눈꽃","새로운 길로 퇴근하기"]]],
+      ['ㅇㅎㅇ',[["굴뚝","가족에게 전화해서 10분 이상 통화하기"]]],
+      ['ㅊㅇㅂ',[["폭죽","올해 가장 잘한 일 3가지 적기"],["리본","책상 서랍 하나 정리하기"]]],
+      ['ㄷㅎㄹ',[["포인세티아","처음 가보는 카페 가기"],["캐롤","친구에게 노래 추천받아서 듣기"]]],
+      ['ㅍㅅㅇ',[["별사탕","거울 보고 스스로에게 칭찬 한마디"],["눈썰매","계단으로만 다니기"]]]
+    ];
+    const later = Array.from({length:TOTAL-8},(_,i)=>i+9).sort(()=>Math.random()-.5);
+    let k = 0;
+    const missions = {}, entries = {}, counts = {};
+    for (const [ini, list] of people){
+      entries[ini] = {missions:[]};
+      for (const [n,t] of list){
+        const slot = k < 8 ? k+1 : later[k-8]; k++;
+        missions[slot] = {nickname:n, text:t, initials:ini};
+        entries[ini].missions.push({slot, nickname:n, text:t});
+        counts[ini] = (counts[ini]||0) + 1;
+      }
+    }
+    const results = {
+      1:{text:"하루 종일 존댓말 했더니 팀장님이 무슨 일 있냐고 물어봄", images:[]},
+      2:{text:"고등학교 친구한테 3년 만에 연락했다. 다음 주에 보기로!", images:[]},
+      3:{text:"구름 한 점 없던 날", images:[demoSky()]},
+      5:{text:"휴대폰 두고 나가니까 오히려 생각이 정리됐다.", images:[]},
+      6:{text:"옆자리 동료 발표 칭찬함. 본인도 놀람.", images:[]}
+    };
+    return { allow:[...people.map(p=>p[0]), 'ㅂㅈㅎ'], entries, missions, counts, results };
+  };
+  const load = () => {
+    if (mem) return mem;
+    try { const raw = localStorage.getItem(KEY); if (raw) return (mem = JSON.parse(raw)); } catch(e){}
+    return (mem = seed());
+  };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch(e){} };
+  let owner = false;
+  try { owner = sessionStorage.getItem('advent-demo-owner') === '1'; } catch(e){}
+  const wait = (v) => new Promise(r=>setTimeout(()=>r(v), 160));
+  const clone = o => JSON.parse(JSON.stringify(o));
+  // 데모: 12월 25일에는 모든 미션이 완료된 상태로 보여줌
+  const allDone = () => isOpen(25);
+  const demoRes = d => load().results[d] || (allDone() ? {text:'미션 완료!', images:[]} : null);
+  return {
+    demo:true,
+    reset(){ try{localStorage.removeItem(KEY);}catch(e){} mem = null; load(); save(); },
+    async isAllowed(ini){ return wait(load().allow.includes(ini)); },
+    async getEntry(ini){ const e = load().entries[ini]; return wait(e ? clone(e) : null); },
+    async getStats(){ const s = load(); return wait({taken:Object.keys(s.missions).length, counts:{...s.counts}}); },
+    async addMission(ini, nickname, text){
+      const s = load();
+      if (!acceptOpen()) throw new AppError('CLOSED');
+      if (!s.allow.includes(ini)) throw new AppError('NOT_ALLOWED');
+      const e = s.entries[ini] || {missions:[]};
+      if (e.missions.length >= PER_PERSON) throw new AppError('LIMIT_PERSON');
+      const free = []; for (let d=1; d<=TOTAL; d++) if (!s.missions[d]) free.push(d);
+      if (!free.length) throw new AppError('FULL');
+      const slot = free[Math.floor(Math.random()*free.length)];
+      s.missions[slot] = {nickname, text, initials:ini};
+      e.missions.push({slot, nickname, text}); s.entries[ini] = e;
+      s.counts[ini] = (s.counts[ini]||0) + 1;
+      save(); return wait(e.missions.length);
+    },
+    async updateMission(ini, slot, nickname, text){
+      const s = load();
+      if (!acceptOpen()) throw new AppError('CLOSED');
+      const e = s.entries[ini]; const m = e && e.missions.find(x=>x.slot===slot);
+      if (!m || s.missions[slot]?.initials !== ini) throw new AppError('NOT_FOUND');
+      m.nickname = nickname; m.text = text; s.missions[slot] = {nickname, text, initials:ini};
+      save(); return wait(true);
+    },
+    async getMission(day){
+      if (!isOpen(day)) throw new AppError('LOCKED');
+      const m = load().missions[day]; return wait(m ? {nickname:m.nickname, text:m.text} : null);
+    },
+    async getResultsMeta(){
+      const out = {}; for (let d=1; d<=TOTAL; d++){ const r = demoRes(d); if (r) out[d] = {hasText:!!r.text, hasImage:!!(r.images||[]).length}; }
+      return wait(out);
+    },
+    async getResult(day){ const r = demoRes(day); return wait(r ? {text:r.text||'', images:[...(r.images||[])]} : null); },
+    async saveResult(day, text, images){
+      if (!owner) throw new AppError('NOT_OWNER');
+      const s = load();
+      if (!text && !images.length) delete s.results[day]; else s.results[day] = {text, images:[...images]};
+      save(); return wait(true);
+    },
+    async listEntries(){
+      if (!owner) throw new AppError('NOT_OWNER');
+      return wait(Object.entries(load().entries).map(([ini,e]) => ({ini, missions:clone(e.missions||[])})));
+    },
+    isOwner(){ return owner; },
+    async ownerLogin(pw){ owner = (await sha256(pw)) === CONFIG.DEMO_PASSWORD_SHA256; try{ sessionStorage.setItem('advent-demo-owner', owner?'1':'0'); }catch(e){} return wait(owner); },
+    async ownerLogout(){ owner = false; try{ sessionStorage.removeItem('advent-demo-owner'); }catch(e){} },
+    async listAllowed(){ return wait([...load().allow]); },
+    async addAllowed(ini){ const s = load(); if (!s.allow.includes(ini)) s.allow.push(ini); save(); return wait(true); },
+    async removeAllowed(ini){ const s = load(); s.allow = s.allow.filter(x=>x!==ini); save(); return wait(true); }
+  };
+}
+
+async function makeFirebaseBackend(){
+  const V = '10.12.2';
+  const [{initializeApp}, fs, au] = await Promise.all([
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`)
+  ]);
+  const app = initializeApp(CONFIG.firebase);
+  const db = fs.getFirestore(app);
+  const auth = au.getAuth(app);
+  await new Promise(r => { const off = au.onAuthStateChanged(auth, () => { off(); r(); }); });
+  const D = (...p) => fs.doc(db, ...p);
+  const metaRef = D('meta','index');
+  const mapErr = e => {
+    if (e instanceof AppError) return e;
+    if (e?.code === 'permission-denied') return new AppError('DENIED');
+    return new AppError('NETWORK');
+  };
+  return {
+    demo:false,
+    async isAllowed(ini){ try { return (await fs.getDoc(D('allow',ini))).exists(); } catch(e){ throw mapErr(e); } },
+    async getEntry(ini){ try { const s = await fs.getDoc(D('entries',ini)); return s.exists() ? s.data() : null; } catch(e){ throw mapErr(e); } },
+    async getStats(){
+      try { const s = await fs.getDoc(metaRef); const d = s.exists() ? s.data() : {};
+        return {taken:(d.taken||[]).length, counts:d.counts||{}}; } catch(e){ throw mapErr(e); }
+    },
+    async addMission(ini, nickname, text){
+      if (!acceptOpen()) throw new AppError('CLOSED');
+      try {
+        return await fs.runTransaction(db, async tx => {
+          const entRef = D('entries', ini);
+          const [ms, es] = await Promise.all([tx.get(metaRef), tx.get(entRef)]);
+          const meta = ms.exists() ? ms.data() : {taken:[], counts:{}};
+          const taken = meta.taken || [], counts = meta.counts || {};
+          const ent = es.exists() ? es.data() : {missions:[]};
+          if ((ent.missions||[]).length >= PER_PERSON) throw new AppError('LIMIT_PERSON');
+          const free = []; for (let d=1; d<=TOTAL; d++) if (!taken.includes(d)) free.push(d);
+          if (!free.length) throw new AppError('FULL');
+          const slot = free[Math.floor(Math.random()*free.length)];
+          const missions = [...(ent.missions||[]), {slot, nickname, text}];
+          tx.set(D('missions', String(slot)), {nickname, text, initials:ini, createdAt:fs.serverTimestamp()});
+          tx.set(entRef, {missions, updatedAt:fs.serverTimestamp()});
+          tx.set(metaRef, {taken:[...taken, slot], counts:{...counts, [ini]:(counts[ini]||0)+1}});
+          return missions.length;
+        });
+      } catch(e){ throw mapErr(e); }
+    },
+    async updateMission(ini, slot, nickname, text){
+      if (!acceptOpen()) throw new AppError('CLOSED');
+      try {
+        const es = await fs.getDoc(D('entries', ini));
+        if (!es.exists()) throw new AppError('NOT_FOUND');
+        const missions = (es.data().missions||[]).map(m => m.slot===slot ? {slot, nickname, text} : m);
+        const b = fs.writeBatch(db);
+        b.update(D('missions', String(slot)), {nickname, text, initials:ini});
+        b.set(D('entries', ini), {missions, updatedAt:fs.serverTimestamp()});
+        await b.commit(); return true;
+      } catch(e){ throw mapErr(e); }
+    },
+    async getMission(day){
+      if (!isOpen(day)) throw new AppError('LOCKED');
+      try { const s = await fs.getDoc(D('missions', String(day)));
+        return s.exists() ? {nickname:s.data().nickname, text:s.data().text} : null;
+      } catch(e){ const err = mapErr(e); throw err.code==='DENIED' ? new AppError('LOCKED') : err; }
+    },
+    async getResultsMeta(){
+      try { const q = await fs.getDocs(fs.collection(db,'results')); const out = {};
+        q.forEach(d => { const v = d.data(); out[d.id] = {hasText:!!v.text, hasImage:(v.imageCount||0) > 0}; }); return out;
+      } catch(e){ throw mapErr(e); }
+    },
+    async getResult(day){
+      try {
+        const r = await fs.getDoc(D('results', String(day)));
+        if (!r.exists()) return null;
+        const v = r.data(), n = v.imageCount || 0;
+        const snaps = await Promise.all([...Array(n)].map((_,i) => fs.getDoc(D('resultImages', `${day}-${i}`))));
+        return {text:v.text||'', images:snaps.filter(x=>x.exists()).map(x=>x.data().data)};
+      } catch(e){ throw mapErr(e); }
+    },
+    async saveResult(day, text, images){
+      try {
+        for (let i=0; i<MAX_PHOTOS; i++){
+          const ref = D('resultImages', `${day}-${i}`);
+          if (images[i]) await fs.setDoc(ref, {data:images[i]}); else await fs.deleteDoc(ref);
+        }
+        if (!text && !images.length) await fs.deleteDoc(D('results', String(day)));
+        else await fs.setDoc(D('results', String(day)), {text, imageCount:images.length, updatedAt:fs.serverTimestamp()});
+        return true;
+      } catch(e){ throw mapErr(e); }
+    },
+    async listEntries(){
+      try { const q = await fs.getDocs(fs.collection(db,'entries'));
+        return q.docs.map(d => ({ini:d.id, missions:d.data().missions||[]}));
+      } catch(e){ throw mapErr(e); }
+    },
+    isOwner(){ return !!auth.currentUser; },
+    async ownerLogin(pw){
+      try { await au.signInWithEmailAndPassword(auth, await ownerEmail(pw), CONFIG.OWNER_PASSWORD_PREFIX + pw); return true; }
+      catch(e){ return false; }
+    },
+    async ownerLogout(){ await au.signOut(auth); },
+    async listAllowed(){ try { const q = await fs.getDocs(fs.collection(db,'allow')); return q.docs.map(d=>d.id); } catch(e){ throw mapErr(e); } },
+    async addAllowed(ini){ try { await fs.setDoc(D('allow', ini), {addedAt:fs.serverTimestamp()}); return true; } catch(e){ throw mapErr(e); } },
+    async removeAllowed(ini){ try { await fs.deleteDoc(D('allow', ini)); return true; } catch(e){ throw mapErr(e); } }
+  };
+}
+
+/* 데모용 하늘 사진(그림) */
+function demoSky(){
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#7FA7C9'/><stop offset='1' stop-color='#F1D9B5'/></linearGradient></defs><rect width='600' height='400' fill='url(#g)'/><circle cx='460' cy='120' r='46' fill='#F2C230' opacity='.9'/><path d='M0 330 L90 250 L160 300 L260 210 L360 300 L450 240 L600 320 L600 400 L0 400Z' fill='#1E4A37'/><path d='M0 360 L120 320 L240 350 L380 310 L600 360 L600 400 L0 400Z' fill='#151515'/></svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/* =====================================================================
+   UI 공통
+   ===================================================================== */
+let api = null;
+let resultsMeta = {};
+
+const overlay = $('#overlay');
+function openSheet(title, body, tone='green'){
+  $('#sheetTitle').textContent = title;
+  const head = $('#sheetHead'); head.className = 'sheet-head' + (tone==='green' ? '' : ' ' + tone);
+  const b = $('#sheetBody'); b.innerHTML = ''; b.append(body);
+  overlay.classList.add('on'); overlay.querySelector('.sheet').scrollTop = 0;
+}
+function closeSheet(){ overlay.classList.remove('on'); }
+$('#sheetClose').onclick = closeSheet;
+overlay.addEventListener('click', e => { if (e.target === overlay) closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+function popup(msg, title='알림', tone='red'){
+  return new Promise(res => {
+    const ok = h('button', {class:'btn block', text:'확인', onclick:()=>{ closeSheet(); res(); }});
+    openSheet(title, h('div', {}, h('p', {class:'dialog-msg', text:msg}), ok), tone);
+    setTimeout(()=>ok.focus(), 50);
+  });
+}
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2200); }
+
+const ERR = {
+  CLOSED: '미션 접수가 마감됐어요.\n(11월 30일까지만 쓰고 고칠 수 있어요)',
+  NOT_ALLOWED: '미션을 쓸 수 있는 이니셜이 아니에요.\n이니셜을 다시 확인해 주세요!',
+  LIMIT_PERSON: '미션은 한 사람당 최대 2개까지만 쓸 수 있어요!\n쓴 미션은 \'미션 수정하기\'에서 고칠 수 있어요.',
+  FULL: '25칸이 모두 찼어요!\n더 이상 미션을 받을 수 없어요.',
+  NOT_FOUND: '미션을 찾을 수 없어요.',
+  DENIED: '권한이 없어요. 잠시 후 다시 시도해 주세요.',
+  NETWORK: '연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.',
+  NOT_OWNER: '관리자만 할 수 있어요.'
+};
+const showErr = e => popup(ERR[e?.code] || ERR.NETWORK);
+
+function busy(btn, on, label){
+  if (on) { btn.dataset.label = btn.textContent; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  else { btn.disabled = false; btn.textContent = label || btn.dataset.label; }
+}
+
+function show(id){
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
+  window.scrollTo({top:0});
+}
+$$('[data-home]').forEach(b => b.addEventListener('click', goHome));
+
+/* =====================================================================
+   트리 그리기
+   ===================================================================== */
+const NS = 'http://www.w3.org/2000/svg';
+const s = (tag, attrs={}, ...kids) => { const el = document.createElementNS(NS, tag); for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v); kids.forEach(k=>el.append(k)); return el; };
+
+const TIERS = [
+  [[200,58],[292,220],[108,220]],
+  [[200,138],[332,340],[68,340]],
+  [[200,246],[368,470],[32,470]]
+];
+const GARLAND = [[46,472],[330,404],[86,330],[300,268],[116,208],[262,156],[196,98]];
+const BETWEEN = [4,4,3,3,2,1];   // 꺾이는 점 7개 + 구간 사이 17개 = 24개
+const STAR = [200, 42];
+
+function ornamentPoints(){
+  const pts = [GARLAND[0]];
+  for (let i=0;i<GARLAND.length-1;i++){
+    const [a,b] = [GARLAND[i], GARLAND[i+1]], n = BETWEEN[i];
+    for (let j=1;j<=n;j++){ const t = j/(n+1); pts.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]); }
+    pts.push(b);
+  }
+  return pts;
+}
+function starPath(cx, cy, R, r){
+  let d = ''; for (let i=0;i<10;i++){ const ang = -Math.PI/2 + i*Math.PI/5; const rad = i%2 ? r : R; d += (i?'L':'M') + (cx+rad*Math.cos(ang)).toFixed(1) + ' ' + (cy+rad*Math.sin(ang)).toFixed(1); }
+  return d + 'Z';
+}
+
+/* ---------- 리소 색 (그린 × 형광 핑크, G3) ---------- */
+const THEMES = {
+  'g3': { name:'그린 × 형광 핑크',
+    paper:'#F6F3EC', paper2:'#EAE5DA', ink:'#24262B',
+    tree:'#00A95C', offset:'#FF48B0', trunk:'#FF48B0',
+    shadeAlpha:.6, shift:[6,4],                       // 그늘 판: 농도 60%, 어긋남 정도
+    open:'#FF48B0', done:'#FFE800', doneText:'#24262B', star:'#FFE800', starBack:'#FF48B0', starBackDone:'#FF48B0',
+    b1:'#FF48B0', b1fg:'#24262B', b2:'#00A95C', b2fg:'#24262B', accent:'#FF48B0' }
+};
+let TH = THEMES.g3;
+function applyTheme(key){
+  TH = THEMES[key] || THEMES.g3;
+  const st = document.documentElement.style;
+  const map = {paper:TH.paper, 'paper-2':TH.paper2, ink:TH.ink, tree:TH.tree, open:TH.open, done:TH.done, star:TH.star,
+    b1:TH.b1, 'b1-fg':TH.b1fg, b2:TH.b2, 'b2-fg':TH.b2fg, accent:TH.accent};
+  for (const [k,v] of Object.entries(map)) st.setProperty('--'+k, v);
+  const rgb = TH.ink.match(/\w\w/g).map(x=>parseInt(x,16)).join(',');
+  st.setProperty('--soft', `rgba(${rgb},.55)`); st.setProperty('--line', `rgba(${rgb},.8)`);
+}
+const MUL = 'mix-blend-mode:multiply';
+function drawTree(){
+  const svg = $('#tree'); svg.innerHTML = '';
+  const defs = s('defs');
+  // 리소 잉크 질감: 농도 얼룩 + 가장자리 살짝 거칠게
+  defs.innerHTML = `
+    <filter id="ink" x="-6%" y="-6%" width="112%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="2" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.7 0 0 0 1.22" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in" result="t"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="1" seed="2" result="w"/>
+      <feDisplacementMap in="t" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="ink2" x="-6%" y="-6%" width="112%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="19" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.7 0 0 0 1.22" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in" result="t"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="5" result="w"/>
+      <feDisplacementMap in="t" in2="w" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>`;
+  svg.append(defs);
+  const poly = (pts, fill) => s('polygon', {points:pts.map(p=>p.join(',')).join(' '), fill});
+  const trunk = fill => s('rect', {x:174, y:466, width:52, height:48, fill});
+  // 판(plate) 하나 = 잉크 한 색. 판끼리는 multiply로 겹쳐 찍혀서 겹친 곳에 제3의 색이 생김
+  const plate = (filter, dx, dy, ...els) => { const g = s('g', {filter:`url(#${filter})`, style:MUL, transform:`translate(${dx} ${dy})`}); els.forEach(e=>g.append(e)); return g; };
+  const A = TH.tree, B = TH.offset;
+
+    // 그린 트리 + 오른쪽 그늘을 두 번째 잉크로 겹쳐 찍기 (trunkInk가 있으면 기둥은 별도 잉크)
+    svg.append(plate('ink', 0, 0, ...TIERS.map(t=>poly(t, A)), ...(TH.trunkInk ? [] : [trunk(A)])));
+    if (TH.trunkInk) svg.append(plate('ink', 0, 0, trunk(TH.trunkInk)));
+    const shade = TIERS.map(([apex, r, l]) => poly([apex, [r[0]+6, r[1]], [apex[0]+ (r[0]-apex[0])*0.12, r[1]]], B));
+    const [sx, sy] = TH.shift || [3, 2];
+    const sp = plate('ink2', sx, sy, ...shade, s('rect', {x:200, y:466, width:32, height:48, fill:B}));
+    if (TH.shadeAlpha) sp.setAttribute('opacity', TH.shadeAlpha);
+    svg.append(sp);
+
+  const pts = GARLAND.map(p=>p.join(',')).join(' ') + ` ${STAR[0]},${STAR[1]+18}`;
+  svg.append(s('polyline', {points:pts, fill:'none', stroke:TH.paper, 'stroke-width':1, 'stroke-dasharray':'3 3', 'stroke-linejoin':'round'}));
+  ornamentPoints().forEach((p, i) => svg.append(ornament(i+1, p[0], p[1])));
+  svg.append(starOrnament());
+}
+
+function stateOf(day){
+  if (!isOpen(day)) return 'future';
+  const r = resultsMeta[day];
+  return r && (r.hasText || r.hasImage) ? 'done' : 'open';
+}
+const stLabel = st => st==='future' ? '아직' : st==='open' ? '진행 중' : '완료';
+
+function ornament(day, x, y){
+  const st = stateOf(day), R = 10;
+  const g = s('g', {class:`orn ${st}`, tabindex:0, role:'button', 'aria-label':`12월 ${day}일 미션 (${stLabel(st)})`});
+  g.append(s('circle', {class:'hit', cx:x, cy:y, r:R+5}));
+  g.append(s('line', {x1:x, y1:y-R, x2:x, y2:y-R-4, stroke:TH.paper, 'stroke-width':1}));
+  // 종이를 비워둔 자리(knockout) + 살짝 어긋난 잉크 → 한쪽엔 종이 틈, 한쪽엔 트리와 겹친 색
+  g.append(s('circle', {class:'body', cx:x, cy:y, r:R, fill:TH.paper, stroke: st==='future' ? GRAY : 'none', 'stroke-width':0.7}));
+  if (st !== 'future'){
+    const ink = s('g', {filter:'url(#ink2)', style:MUL});
+    const [ox, oy] = TH.ornShift || [1.6, 1.2];
+    ink.append(s('circle', {cx:x+ox, cy:y+oy, r:R, fill: st==='open' ? TH.open : TH.done}));
+    g.append(ink);
+    const ring = TH.ring && TH.ring[st];
+    if (ring) g.append(s('circle', {cx:x+0.8, cy:y+0.6, r:R+0.6, fill:'none', stroke:ring, 'stroke-width':1.2}));
+  }
+  const t = s('text', {class:'num', x, y:y+2.8, 'text-anchor':'middle', fill: st==='done' ? TH.doneText : st==='open' ? (TH.openText || TH.ink) : TH.ink}); t.textContent = day; g.append(t);
+  bindOrn(g, day);
+  return g;
+}
+function starOrnament(){
+  const day = 25, st = stateOf(day), [x,y] = STAR;
+  const g = s('g', {class:`orn ${st}`, tabindex:0, role:'button', 'aria-label':`12월 25일 미션 (별, ${stLabel(st)})`});
+  g.append(s('circle', {class:'hit', cx:x, cy:y, r:32}));
+  if (st==='future'){
+    g.append(s('path', {class:'body', d:starPath(x,y,27,11.5), fill:TH.paper, stroke:GRAY, 'stroke-width':0.9, 'stroke-linejoin':'round'}));
+  } else {
+    // 노랑판(앞)과 두 번째 잉크판을 어긋나게 겹쳐 찍기 → 겹친 곳에 섞인 색
+    const [bx, by] = TH.starShift || [5, 5];
+    const back = s('g', {filter:'url(#ink2)', style:MUL, opacity: TH.starAlpha ?? .35}); back.append(s('path', {d:starPath(x+bx,y+by,27,11.5), fill: st==='done' ? TH.starBackDone : TH.starBack}));
+    const front = s('g', {filter:'url(#ink)', style:MUL}); front.append(s('path', {class:'body', d:starPath(x,y,27,11.5), fill:TH.star}));
+    g.append(back, front);
+  }
+  const t = s('text', {class:'num', x, y:y+3.6, 'text-anchor':'middle', fill:TH.ink, style:'font-size:10px'}); t.textContent = '25'; g.append(t);
+  bindOrn(g, day);
+  return g;
+}
+
+const GRAY = '#55585E';
+/* ---------- 달성률 실루엣: 20%마다 루돌프 1마리, 100%면 산타 썰매 ---------- */
+function reindeer(ox){
+  const g = s('g', {transform:`translate(${ox} 0)`, fill:GRAY, stroke:GRAY, 'stroke-linecap':'round', 'stroke-linejoin':'round'});
+  g.append(s('ellipse', {cx:13, cy:11, rx:8, ry:3.5, stroke:'none'}));
+  g.append(s('polygon', {points:'17.5,9.5 21,4.5 23.6,5.6 20.8,11.8', stroke:'none'}));
+  g.append(s('ellipse', {cx:24, cy:5, rx:2.7, ry:1.7, stroke:'none'}));
+  g.append(s('polygon', {points:'25,3.9 28.8,4.9 28.5,6.3 25,6.6', stroke:'none'}));
+  g.append(s('polygon', {points:'5.4,9.4 2.6,8.3 5.6,11', stroke:'none'}));
+  g.append(s('path', {d:'M22.4 3.8 L21.3 0.6 M21.8 1.9 L19.9 1.2 M23.6 3.5 L24.8 0.4 M24.3 1.6 L26 0.9', fill:'none', 'stroke-width':0.8}));
+  g.append(s('path', {d:'M18 13 L21.2 19.8 M16.4 13.4 L18.8 20.4 M8.6 13.2 L5.4 19.6 M10.2 13.6 L8 20.4', fill:'none', 'stroke-width':1.3}));
+  return g;
+}
+function santaSleigh(){
+  const g = s('g', {fill:GRAY, stroke:GRAY, 'stroke-linecap':'round', 'stroke-linejoin':'round'});
+  g.append(s('path', {d:'M3 12 L3 5.5 Q3 3.4 5.2 3.4 L7.2 3.4 L7.2 11 L28 11 Q31.5 11 31.5 8 L31.5 6.6 L33.6 6.6 L33.6 9.6 Q33.6 16 27.6 16 L7 16 Q3 16 3 12 Z', stroke:'none'}));
+  g.append(s('path', {d:'M2 19.6 L30 19.6 Q34.2 19.6 35.4 16.2 M9 16 L9 19.6 M25 16 L25 19.6', fill:'none', 'stroke-width':1}));
+  g.append(s('ellipse', {cx:17.5, cy:8, rx:5.4, ry:4.2, stroke:'none'}));
+  g.append(s('circle', {cx:21, cy:3.2, r:2.3, stroke:'none'}));
+  g.append(s('polygon', {points:'19,2.4 23.4,2.2 18.6,-1.6', stroke:'none'}));
+  g.append(s('circle', {cx:18.2, cy:-1.7, r:1, stroke:'none'}));
+  return g;
+}
+function drawRate(done){
+  const pct = Math.round(done / TOTAL * 100);
+  const deer = Math.min(4, Math.floor(pct / 20));
+  const santa = pct >= 100;
+  $('#rateNum').textContent = `${pct}%`;
+  const box = $('#rateFig'); box.innerHTML = '';
+  if (!deer) { box.hidden = true; return pct; }
+  box.hidden = false;
+  const sw = santa ? 38 : 0, dw = 29;
+  const W = sw + deer * dw;
+  const svg = s('svg', {viewBox:`0 -3 ${W} 25`, width: W * 0.72, height: 25 * 0.72, 'aria-hidden':'true'});
+  if (santa){
+    svg.append(santaSleigh());
+    svg.append(s('path', {d:`M22.5 6.5 L${sw + (deer-1)*dw + 20} 9`, stroke:GRAY, 'stroke-width':0.5, fill:'none'}));
+  }
+  for (let i=0;i<deer;i++) svg.append(reindeer(sw + i*dw));
+  box.append(svg);
+  return pct;
+}
+function bindOrn(g, day){
+  g.addEventListener('click', () => openDay(day));
+  g.addEventListener('keydown', e => { if (e.key==='Enter' || e.key===' ') { e.preventDefault(); openDay(day); } });
+}
+
+/* =====================================================================
+   오너먼트 열기 (미션지 + 실행 결과)
+   ===================================================================== */
+/* 편지지 입력칸 높이를 내용에 맞춤 */
+function autosize(ta){ if (!ta) return; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+document.addEventListener('input', e => { if (e.target.matches?.('textarea.letter')) autosize(e.target); });
+
+/* 미션과 실행 결과 사이 장식: 덩굴 + 레몬빛 전구 + 크레용 오너먼트
+   'lights'(전구만) | 'pastel' | 'riso2' | 'stamp' */
+let GARLAND_STYLE = 'stamp';
+// 오너먼트 전용 잉크 (트리·버튼 등 기존 화면 색과 겹치지 않게)
+const OC = { brown:'#925F52', brick:'#A75154', apricot:'#F6A04D', cornflower:'#62A8E5', mint:'#82D8D5', midnight:'#435060', lemon:'#FFFBD6', paper:'#F6F3EC' };
+const ORN = {
+  snowman(f){ return [
+    s('circle', {cx:0, cy:9.6, r:4.3, ...f('snow')}), s('circle', {cx:0, cy:4.2, r:2.9, ...f('snow')}),
+    s('rect', {x:-3.3, y:6.1, width:6.6, height:1.5, rx:.7, ...f('scarf')}),
+    s('rect', {x:-1.8, y:-.7, width:3.6, height:2.5, rx:.3, ...f('eye')}), s('rect', {x:-2.9, y:1.5, width:5.8, height:.9, rx:.4, ...f('eye')}),
+    s('polygon', {points:'0,4.4 2.8,4.9 0,5.5', ...f('nose')}),
+    s('circle', {cx:-1, cy:3.6, r:.45, ...f('eye')}), s('circle', {cx:1, cy:3.6, r:.45, ...f('eye')}) ]; },
+  ginger(f){ return [
+    s('circle', {cx:0, cy:2.8, r:2.7, ...f('cookie')}),
+    s('rect', {x:-5.4, y:5.1, width:10.8, height:2.1, rx:1, ...f('cookie')}),
+    s('rect', {x:-2.5, y:4.4, width:5, height:5.8, rx:1.6, ...f('cookie')}),
+    s('rect', {x:-2.8, y:8.4, width:2.3, height:4.6, rx:1.1, transform:'rotate(12 -1.6 8.4)', ...f('cookie')}),
+    s('rect', {x:.5, y:8.4, width:2.3, height:4.6, rx:1.1, transform:'rotate(-12 1.6 8.4)', ...f('cookie')}),
+    s('circle', {cx:0, cy:6.3, r:.55, ...f('light')}), s('circle', {cx:0, cy:8.3, r:.55, ...f('light')}),
+    s('circle', {cx:-.95, cy:2.3, r:.45, ...f('light')}), s('circle', {cx:.95, cy:2.3, r:.45, ...f('light')}) ]; },
+  deerFace(f){ return [
+    s('path', {d:'M-1.3 3 L-2.7 -.4 M-2.2 .7 L-4.1 .2 M-2.5 -.1 L-1.5 -1.5 M1.3 3 L2.7 -.4 M2.2 .7 L4.1 .2 M2.5 -.1 L1.5 -1.5', fill:'none', 'stroke-width':1.15, 'stroke-linecap':'round', ...f('antler', true)}),
+    s('ellipse', {cx:-3.1, cy:4, rx:1.8, ry:.9, transform:'rotate(-25 -3.1 4)', ...f('fur')}),
+    s('ellipse', {cx:3.1, cy:4, rx:1.8, ry:.9, transform:'rotate(25 3.1 4)', ...f('fur')}),
+    s('ellipse', {cx:0, cy:6.6, rx:2.9, ry:4.1, ...f('fur')}),
+    s('circle', {cx:0, cy:10.1, r:1.5, ...f('scarf')}),
+    s('circle', {cx:-1.1, cy:5.5, r:.45, ...f('eye')}), s('circle', {cx:1.1, cy:5.5, r:.45, ...f('eye')}) ]; },
+  bear(f){ return [
+    s('circle', {cx:-2.7, cy:1.7, r:1.4, ...f('polar')}), s('circle', {cx:2.7, cy:1.7, r:1.4, ...f('polar')}),
+    s('ellipse', {cx:0, cy:5.2, rx:4, ry:3.6, ...f('polar')}),
+    s('ellipse', {cx:0, cy:6.9, rx:2.3, ry:1.7, ...f('light')}),
+    s('ellipse', {cx:0, cy:6.3, rx:1.25, ry:.85, ...f('eye')}),
+    s('circle', {cx:-1.5, cy:4.4, r:.7, ...f('eye')}), s('circle', {cx:1.5, cy:4.4, r:.7, ...f('eye')}) ]; },
+  hat(f){ return [
+    s('path', {d:'M-4 8 Q-3.4 1.6 1.8 -.6 Q4.6 -1.4 4.8 1.6 Q3 1 2.6 3 L3.8 8 Z', ...f('hat')}),
+    s('rect', {x:-5, y:7, width:9.8, height:2.8, rx:1.4, ...f('fluff')}),
+    s('circle', {cx:4.8, cy:2, r:1.7, ...f('fluff')}),
+    s('rect', {x:-4.6, y:8.6, width:9, height:1.2, rx:.6, ...f('shade')}),
+    s('path', {d:'M3.3 2.6 A1.7 1.7 0 0 0 6.4 2.6 A1.6 1.2 0 0 1 3.3 2.6 Z', ...f('shade')}) ]; },
+  sleigh(f){ return [
+    // 썰매 옆모습 + 앉아 있는 산타
+    s('ellipse', {cx:-1, cy:5.4, rx:3.4, ry:3.3, ...f('red')}),
+    s('circle', {cx:-.6, cy:1.4, r:1.8, ...f('skin')}),
+    s('path', {d:'M-2.6 1 Q-.8 -2.6 1.6 -.2 Q2.6 .2 3 1.4 Q1.4 .4 1 1 Z', ...f('red')}),
+    s('path', {d:'M-8 4.4 L-6.6 4.4 L-5.8 8 L7.4 8 Q9 8 9 5.6 L10.2 5.6 Q10.2 10.4 7 10.4 L-6.2 10.4 Q-8 10.4 -8 8.2 Z', ...f('red')}),
+    s('path', {d:'M-8.6 12.6 L8.4 12.6 Q11.2 12.6 11.2 10 M-5 10.4 L-5 12.6 M5 10.4 L5 12.6', fill:'none', 'stroke-width':.9, 'stroke-linecap':'round', ...f('midnight', true)}),
+    s('rect', {x:-3, y:-1.6, width:4.2, height:1.3, rx:.6, transform:'rotate(-20 -1 -1)', ...f('fluff')}),
+    s('circle', {cx:3, cy:1.4, r:.9, ...f('fluff')}),
+    s('ellipse', {cx:.2, cy:2.9, rx:1.6, ry:1.1, ...f('fluff')}),
+    s('rect', {x:-5.8, y:8.6, width:13, height:1, ...f('shade')}) ]; },
+  gift(f, c){ return [
+    s('rect', {x:-3.8, y:3.2, width:7.6, height:6.4, rx:.4, ...f(c[0])}),
+    s('rect', {x:-4.3, y:1.8, width:8.6, height:2, rx:.4, ...f(c[0])}),
+    s('rect', {x:-.75, y:1.8, width:1.5, height:7.8, ...f(c[1])}),
+    s('rect', {x:-4.3, y:5.6, width:8.6, height:1.3, ...f(c[1])}),
+    s('ellipse', {cx:-1.8, cy:.9, rx:1.8, ry:1.05, transform:'rotate(-22 -1.8 .9)', ...f(c[1])}),
+    s('ellipse', {cx:1.8, cy:.9, rx:1.8, ry:1.05, transform:'rotate(22 1.8 .9)', ...f(c[1])}),
+    s('circle', {cx:0, cy:1.5, r:.9, ...f(c[1])}) ]; },
+  flake(f){
+    let d = '';
+    for (let k=0;k<6;k++){ const a = k*Math.PI/3 - Math.PI/2;
+      const p = (r, da=0) => `${(r*Math.cos(a+da)).toFixed(2)} ${(5.5 + r*Math.sin(a+da)).toFixed(2)}`;
+      d += `M0 5.5 L${p(5.2)} M${p(3.4)} L${p(4.8,.38)} M${p(3.4)} L${p(4.8,-.38)} `; }
+    return [s('path', {d, fill:'none', 'stroke-width':1.35, 'stroke-linecap':'round', 'stroke-linejoin':'round', ...f('ice', true)}),
+            s('circle', {cx:0, cy:5.5, r:1.3, ...f('ice')})]; },
+  runner(f){
+    const g = reindeer(0); g.setAttribute('transform','translate(-6.4 0) scale(.44)');
+    const c = f('fur').fill; g.setAttribute('fill', c); g.setAttribute('stroke', c);
+    if (f('fur')['fill-opacity']) g.setAttribute('opacity', f('fur')['fill-opacity']);
+    return [g]; }
+};
+// 역할 → 잉크
+const ROLE = { hat:'#E23B3B', red:'#E23B3B', icy:'#3DAEE9', frost:'#A9C6F2', skin:'#F2CDCF', snow:'#A9C6F2', cookie:'#DB8A3A', fur:OC.brown, polar:OC.cornflower, scarf:OC.brick, nose:OC.apricot, antler:OC.apricot, ice:'#3DAEE9', eye:OC.midnight, apricot:OC.apricot, midnight:OC.midnight, light:OC.paper };
+const PARTNER = { snow:OC.cornflower, cookie:OC.apricot, fur:OC.apricot, polar:OC.mint, scarf:OC.apricot, ice:OC.mint };
+const GIFTS = { g1:['icy','red'], g2:['red','fluff'], g3:['midnight','apricot'], g4:['apricot','icy'], g5:['frost','red'] };
+// 선물상자 색 (상자, 리본): 핑크+연두 / 오렌지+연두 / 연보라+진보라 / 군고구마+진보라 / 연두+진보라
+const GIFT_TONES = {
+  vivid:  {pink:'#F57AB0', lime:'#9BCB3C', orange:'#F5822F', lav:'#B9A3E3', purple:'#5A3B8E', potato:'#EFA33A'},
+  pastel: {pink:'#F7B4CF', lime:'#C5E07A', orange:'#F8A96B', lav:'#D3C6F0', purple:'#7A62A8', potato:'#F3BF6E'},
+  deep:   {pink:'#D9668F', lime:'#86A93A', orange:'#DC6B2A', lav:'#A08CC9', purple:'#47306F', potato:'#D98C2E'}
+};
+const GIFT_PAIRS = { p1:['pink','lime'], p2:['orange','lime'], p3:['lav','purple'], p4:['potato','purple'], p5:['lime','purple'] };
+const giftColors = (tone, key) => GIFT_PAIRS[key].map(k => GIFT_TONES[tone][k]);
+// 확정 선물상자 (상자, 리본)
+Object.assign(GIFTS, {
+  k1:[GIFT_TONES.vivid.pink, GIFT_TONES.vivid.lime],     // 핑크 + 연두
+  k2:[GIFT_TONES.vivid.lav, GIFT_TONES.vivid.purple],    // 연보라 + 보라
+  k3:[GIFT_TONES.vivid.orange, GIFT_TONES.vivid.lime],   // 오렌지 + 연두
+  k4:[GIFT_TONES.pastel.lime, GIFT_TONES.pastel.purple]  // 연두 + 보라
+});
+let GARLAND_LAYOUT = 'final';
+const LAYOUTS = {
+  wide:  [['flake',20,1,.8,-10],['snowman',56,6,1,4],['ginger',100,2,1,-8],['bear',119,9,.9,6],['hat',168,0,.9,-14],['runner',212,5,1,0],['deerFace',258,3,1,8],['flake',279,10,.6,20],['snowman',318,1,.8,-5]],
+  dense: [['hat',12,0,.7,-20],['flake',28,6,.55,0],['bear',60,2,.75,-6],['deerFace',76,7,.7,10],['ginger',128,1,.8,12],['flake',143,9,.5,0],['snowman',188,4,.75,-4],['runner',230,0,.75,-6],['hat',248,6,.6,18],['ginger',284,8,.65,-10],['bear',304,1,.7,4],['flake',328,3,.6,0]],
+  // 추가만: 기존 12개 + 썰매 1 + 선물 2
+  addAll: [['hat',12,0,.7,-20],['flake',28,6,.55,0],['bear',60,2,.75,-6],['deerFace',76,7,.7,10],['gift',100,3,.7,-8,'g1'],['ginger',128,1,.8,12],['flake',143,9,.5,0],['snowman',188,4,.75,-4],['sleigh',210,2,.62,0],['runner',236,0,.75,-6],['hat',254,6,.6,18],['ginger',284,8,.65,-10],['bear',304,1,.7,4],['gift',318,7,.62,10,'g2'],['flake',334,3,.55,0]],
+  // 일부 대체: 모자·진저브래드·눈꽃 하나씩을 썰매·선물로
+  replace: [['hat',12,0,.7,-20],['flake',28,6,.55,0],['bear',60,2,.75,-6],['deerFace',76,7,.7,10],['ginger',128,1,.8,12],['gift',145,6,.66,-6,'g3'],['snowman',188,4,.75,-4],['runner',230,0,.75,-6],['sleigh',262,3,.62,4],['gift',291,8,.6,12,'g1'],['bear',308,1,.7,4],['flake',330,3,.6,0]],
+  // 루돌프가 썰매를 끄는 짝 + 선물 여러 색
+  pair: [['gift',14,2,.6,-12,'g4'],['flake',30,8,.5,0],['bear',60,2,.75,-6],['deerFace',78,7,.7,10],['ginger',126,1,.8,12],['gift',146,7,.62,8,'g2'],['snowman',184,4,.75,-4],['sleigh',212,1,.66,0],['runner',240,0,.75,-4],['hat',262,7,.6,18],['gift',288,3,.66,-6,'g5'],['ginger',306,9,.6,-10],['flake',330,3,.6,0]],
+  // 확정: [종류, x, 실 길이, 크기, 기울기, 선물색, 실 색('ribbon'|'ice'|'vine')]
+  // 양 끝 여백(오너먼트 하나 + 간격 너비)에는 전구만, 오너먼트는 안쪽에 불규칙하게
+  final: {items:[['gift',29,14,.84,-6,'k2','ribbon'],['bear',55,3,.72,-6,null,'vine'],['deerFace',67,10,.7,8,null,'vine'],['flake',96,5,.62,0,null,'ice'],['ginger',117,13,.8,10,null,'vine'],['gift',136,10,.88,6,'k1','ribbon'],['snowman',170,6,.75,-4,null,'vine'],['sleigh',197,7,.66,0,null,'vine'],['runner',219,11,.72,-4,null,'vine'],['runner',230,8,.7,3,null,'vine'],['flake',262,17,.46,0,null,'vine'],['gift',276,12,.82,-6,'k4','vine'],['gift',309,9,.8,8,'k3','ribbon']]},
+  // 3번 배치 기반, 양 끝 눈꽃 없이 순서 재배치
+  opt1: {tone:'vivid', items:[['gift',12,2,.62,-10,'p1'],['bear',36,1,.72,-6],['flake',58,8,.5,0],['deerFace',84,4,.7,10],['ginger',116,1,.8,12],['gift',144,7,.62,8,'p3'],['snowman',178,4,.75,-4],['sleigh',208,1,.66,0],['runner',236,0,.75,-4],['hat',254,7,.6,18],['gift',286,3,.64,-6,'p5'],['flake',306,9,.5,0],['gift',330,2,.6,10,'p2']]},
+  opt2: {tone:'pastel', items:[['hat',14,0,.66,-18],['gift',33,5,.5,-8,'p1'],['gift',44,9,.44,10,'p4'],['bear',72,2,.75,-6],['flake',98,7,.5,0],['ginger',124,1,.8,12],['deerFace',152,6,.7,8],['snowman',184,3,.75,-4],['sleigh',212,1,.66,0],['runner',240,0,.75,-4],['gift',272,4,.5,-6,'p3'],['gift',284,8,.42,12,'p5'],['ginger',306,2,.62,-10],['snowman',330,6,.6,6],['gift',318,12,.4,0,'p2']]},
+  opt3: {tone:'deep', items:[['deerFace',12,1,.7,-8],['gift',38,3,.82,-4,'p4'],['flake',66,9,.5,0],['bear',92,1,.75,6],['gift',120,8,.5,12,'p2'],['ginger',146,1,.78,-10],['snowman',180,4,.75,-4],['sleigh',210,1,.66,0],['runner',238,0,.75,-4],['gift',264,5,.7,-8,'p5'],['hat',290,1,.62,16],['flake',308,8,.45,0],['gift',330,3,.56,8,'p3'],['gift',96,12,.42,-6,'p1']]},
+  'sw-vivid':  {tone:'vivid',  items:[['gift',40,3,1,0,'p1'],['gift',105,3,1,0,'p2'],['gift',170,3,1,0,'p3'],['gift',235,3,1,0,'p4'],['gift',300,3,1,0,'p5']]},
+  'sw-pastel': {tone:'pastel', items:[['gift',40,3,1,0,'p1'],['gift',105,3,1,0,'p2'],['gift',170,3,1,0,'p3'],['gift',235,3,1,0,'p4'],['gift',300,3,1,0,'p5']]},
+  'sw-deep':   {tone:'deep',   items:[['gift',40,3,1,0,'p1'],['gift',105,3,1,0,'p2'],['gift',170,3,1,0,'p3'],['gift',235,3,1,0,'p4'],['gift',300,3,1,0,'p5']]},
+  // 선물상자 색 조합 견본
+  gifts: [['gift',40,3,1,0,'g1'],['gift',105,3,1,0,'g2'],['gift',170,3,1,0,'g3'],['gift',235,3,1,0,'g4'],['gift',300,3,1,0,'g5']]
+};
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function garland(){
+  const W = 340, H = 66, svg = s('svg', {class:'garland', viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'xMidYMid meet', 'aria-hidden':'true'});
+  const id = 'gl' + Math.random().toString(36).slice(2,7), mode = GARLAND_STYLE;
+  const rough = mode === 'stamp' ? 2.4 : 1.4;
+  const defs = s('defs');
+  // 크레용·파스텔 결: 한쪽으로 길게 늘어난 종이 결 노이즈로 잉크를 군데군데 비우고, 가장자리를 살짝 흔듦
+  defs.innerHTML = `
+    <filter id="${id}" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.7 0.42" numOctaves="2" seed="5" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.3 0 0 0 1.9" result="m"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.22" numOctaves="2" seed="4" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="${rough}" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feComposite in="d" in2="m" operator="in"/>
+    </filter>
+    <filter id="${id}f" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.5 0.6" numOctaves="2" seed="5" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.2 0 0 0 1.45" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in"/>
+    </filter>
+    <filter id="${id}v" x="-5%" y="-30%" width="110%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.2 0.6" numOctaves="2" seed="5" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.5 0 0 0 1.55" result="m"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.2" numOctaves="1" seed="3" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="1" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feComposite in="d" in2="m" operator="in"/>
+    </filter>`;
+  svg.append(defs);
+  const plate = (f, dx=0, dy=0, op=1) => s('g', {filter:`url(#${f})`, style:MUL, transform:`translate(${dx} ${dy})`, opacity:op});
+
+  const y = x => 22 + 4*Math.sin(x/W*Math.PI*2*1.9 + .4) + 1.6*Math.sin(x/W*Math.PI*2*5.3 + 1.1) + .8*Math.sin(x/W*Math.PI*2*11.7 + 2);
+  const y2 = x => y(x) + 1.5*Math.sin(x/8.5 + 1);
+  // 덩굴: 실제 덩굴처럼 굵기가 점점 가늘어지고, 두 군데서 비스듬한 물방울 모양으로 한 번씩 감겨 꼬임
+  const TWISTS = [[98, -1, 4.2, 4.6, 8, .45], [188, -1, 3.1, 3.5, 5.5, -.25], [306, 1, 3, 3.6, 6, -.35]];   // + 기울기(전단)   // [x, 방향(-1 위/1 아래), 가로 반경, 세로 반경, 진행 거리]
+  const P = [], loopPts = [];
+  for (let x=-4; x<=W+4; x+=1.5){
+    const tw = TWISTS.find(([tx, , , , adv]) => x >= tx && x < tx + adv);
+    if (tw){
+      if (!P.twisting || P.twisting !== tw){
+        P.twisting = tw; const [tx, dir, rx, ry, adv, k] = tw;
+        // 필기체 'ℓ'처럼 앞으로 가다 뒤로 말려 올라가 줄기를 가로지르는 고리, 한쪽으로 기울게
+        for (let t=0; t<=1.0001; t+=.02){
+          const dy = dir*ry*(1 - Math.cos(2*Math.PI*t))*(1 + .3*t);
+          const dx = adv*t - rx*Math.sin(2*Math.PI*t) - k*dy;
+          P.push([tx + dx, y(tx + adv*t) + dy]); if (t > .15 && t < .85) loopPts.push(P[P.length-1]);
+        }
+      }
+      continue;
+    }
+    P.twisting = null; P.push([x, y(x)]);
+  }
+  // 바깥 윤곽 = 중심선을 굵기만큼 양옆으로 밀어낸 면 (선이 아니라 칠한 줄기)
+  const Wd = i => { const u = i/(P.length-1); return 1.75 - .75*u + .22*Math.sin(i*.37) + .12*Math.sin(i*1.3); };
+  const L = [], Rr = [];
+  P.forEach(([px, py], i) => {
+    const a = P[Math.max(0,i-1)], b = P[Math.min(P.length-1,i+1)];
+    let nx = -(b[1]-a[1]), ny = b[0]-a[0]; const n = Math.hypot(nx, ny) || 1; nx/=n; ny/=n;
+    const w = Wd(i)/2; L.push([px+nx*w, py+ny*w]); Rr.push([px-nx*w, py-ny*w]);
+  });
+  const stem = 'M' + L.map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L') + ' L' + Rr.reverse().map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L') + ' Z';
+  const vine = plate(id+'v');  // 오너먼트와 같은 크레용 결
+  vine.append(s('path', {d:stem, fill:TH.tree}));
+  const R = rng(11);
+  // 잎: 몇 장씩 모였다가 비었다가, 크기·각도 제각각
+  const leafAt = [];
+  for (let x=6; x<W; ){ const n = 1 + Math.floor(R()*3); for (let k=0;k<n;k++) leafAt.push([x + k*(2.5+R()*3), R() < .5 ? -1 : 1, 2 + R()*2.8]); x += 14 + R()*26; }
+  for (const [x, side, sz] of leafAt){
+    const x0 = x, y0 = y(x), ang = side*(25 + R()*45) + (R()-.5)*25;
+    const leaf = `M0 0 Q${sz*.45} ${-sz*.55} ${sz} 0 Q${sz*.45} ${sz*.55} 0 0 Z`;
+    vine.append(s('path', {d:leaf, fill:TH.tree, transform:`translate(${x0.toFixed(1)} ${y0.toFixed(2)}) rotate(${(ang - 90*side + 90).toFixed(1)})`}));
+  }
+  svg.append(vine);
+
+  // 레몬빛 전구: 흰색에 가까운 레몬색, 완전한 동그라미, 덩굴 위에 불규칙하게 잔뜩
+  const B = rng(29), bulbs = [], N = mode === 'lights' ? 58 : 44;
+  // 전체 길이에 고르게 퍼지되 칸마다 위치·크기를 흔들어 불규칙하게 (한쪽에 몰리거나 비지 않게)
+  const step = (W - 4) / N;
+  for (let i=0; i<N; i++){ const x = 2 + step*(i + .15 + B()*.7); bulbs.push([x, y(x) + (B()-.5)*1.4, 1.1 + B()*.9]); }
+  // 고리 위에는 두세 개만
+  for (let i=4; i<loopPts.length; i+=11 + Math.floor(B()*5)){ const [lx, ly] = loopPts[i]; bulbs.push([lx, ly + (B()-.5)*.6, 1 + B()*.7]); }
+  const bulbG = s('g'), bulbTop = s('g');
+  bulbs.forEach(([x, cy, r], i) => (i % 4 === 0 ? bulbTop : bulbG).append(s('circle', {cx:x.toFixed(2), cy:cy.toFixed(2), r:r.toFixed(2), fill:OC.lemon})));
+  svg.append(bulbG);
+
+  if (mode !== 'lights'){
+    const L = mode === 'stamp' ? (LAYOUTS[GARLAND_LAYOUT] || LAYOUTS.dense) : LAYOUTS.wide;
+    const items = Array.isArray(L) ? L : L.items, tone = L.tone || 'vivid';
+    const back = plate(id, 1.3, 1, .75), front = plate(id), threads = s('g');
+    const flakes = plate(id+'f');
+    const fluff = s('g', {filter:`url(#${id}f)`});   // 하얀 털: 곱하기 없이 얹어야 하얗게 보임
+    const fBase = (role, stroke) => {
+      if (role === 'light') return {fill:OC.paper};
+      if (role === 'fluff' || role === 'shade') return stroke ? {stroke:'none'} : {fill:'none'};
+      if (role && role[0] === '#') return stroke ? {stroke:role} : {fill:role};
+      const c = ROLE[role]; let op = role === 'polar' ? .45 : role === 'snow' ? .7 : role === 'frost' ? .8 : 1;
+      return stroke ? {stroke:c, 'stroke-opacity':op} : {fill:c, 'fill-opacity':op};
+    };
+    const fBack = (role, stroke) => {
+      const c = PARTNER[role]; if (!c) return stroke ? {stroke:'none'} : {fill:'none'};
+      return stroke ? {stroke:c, 'stroke-opacity':.7} : {fill:c, 'fill-opacity':.6};
+    };
+    const fWhite = (role, stroke) => role === 'fluff' ? {fill:'#FFFFFF'} : role === 'shade' ? {fill:'#9CA3AE', 'fill-opacity':.45} : stroke ? {stroke:'none'} : {fill:'none'};
+    const strings = plate(id+'v');
+    for (const [type, x, len, sc, rot, opt, thr] of items){
+      const yy = y(x), top = yy + len;
+      const og = opt && GIFTS[opt];
+      if (thr){
+        // 구불구불한 덩굴 같은 실 (눈꽃색 / 리본색 / 덩굴색)
+        const col = thr === 'ice' ? ROLE.ice : thr === 'ribbon' && og ? og[1] : TH.tree;
+        let d = `M${x} ${yy.toFixed(2)}`;
+        for (let t=.08; t<=1.0001; t+=.08){ d += ` L${(x + .75*Math.sin(t*Math.PI*3 + x)).toFixed(2)} ${(yy + (len+.8)*t).toFixed(2)}`; }
+        strings.append(s('path', {d, fill:'none', stroke:col, 'stroke-width':.6, 'stroke-linecap':'round', 'stroke-linejoin':'round'}));
+      } else if (len > 1) threads.append(s('path', {d:`M${x} ${yy} L${x} ${top+.6}`, stroke:OC.midnight, 'stroke-width':.3, opacity:.5}));
+      const tf = `translate(${x} ${top}) rotate(${rot}) scale(${sc*1.2})`;
+      const scale = type === 'bear' ? 1.25 : type === 'flake' ? 1.15 : 1;
+      const tf2 = `translate(${x} ${top}) rotate(${rot}) scale(${sc*1.2*scale})`;
+      const o = opt && (GIFTS[opt] || (GIFT_PAIRS[opt] && giftColors(tone, opt)));
+      const gf = s('g', {transform:tf2}); ORN[type](fBase, o).forEach(e => gf.append(e)); (type === 'flake' ? flakes : front).append(gf);
+      if (type === 'hat' || type === 'sleigh' || (o && o.includes('fluff'))){ const gw = s('g', {transform:tf2}); ORN[type](fWhite, o).forEach(e => gw.append(e)); fluff.append(gw); }
+      if (mode === 'riso2'){ const gb = s('g', {transform:tf}); ORN[type](fBack).forEach(e => gb.append(e)); back.append(gb); }
+    }
+    svg.append(threads, strings);
+    if (mode === 'riso2') svg.append(back);
+    svg.append(front, flakes, fluff);
+  }
+  svg.append(bulbTop);
+  return svg;
+}
+
+/* 미션지에 한 글자씩 써지는 효과 */
+function typeOut(el, text){
+  const chars = [...text];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = text; return el; }
+  el.classList.add('typing'); let i = 0;
+  const speed = Math.max(28, Math.min(70, 2200 / chars.length));
+  const tick = () => {
+    if (!el.isConnected && i > 0) return;
+    el.textContent = chars.slice(0, ++i).join('');
+    if (i < chars.length) setTimeout(tick, chars[i-1] === '\n' ? speed*4 : speed);
+    else setTimeout(() => el.classList.remove('typing'), 900);
+  };
+  setTimeout(tick, 250);
+  return el;
+}
+async function openDay(day){
+  if (!isOpen(day)) { popup(`12월 ${day}일부터 볼 수 있음!`, `12월 ${day}일`, day===25 ? 'yellow' : 'red'); return; }
+  const tone = day===25 ? 'yellow' : stateOf(day)==='done' ? 'yellow' : 'red';
+  const body = h('div', {}, h('p', {class:'muted'}, h('span', {class:'spinner'}), ' 미션지를 펼치는 중…'));
+  openSheet(`12월 ${day}일의 미션`, body, tone);
+  let mission, result;
+  try { [mission, result] = await Promise.all([api.getMission(day), api.getResult(day)]); }
+  catch(e){ body.innerHTML = ''; body.append(h('p', {class:'dialog-msg', text: e.code==='LOCKED' ? `12월 ${day}일부터 볼 수 있음!` : ERR.NETWORK})); return; }
+  body.innerHTML = '';
+  body.append(mission
+    ? h('div', {class:'mission-paper'}, h('div', {class:'from'}, 'from. ', h('b', {text:mission.nickname || '익명'})),
+        typeOut(h('p', {class:'m', style:'margin:0'}), mission.text))
+    : h('div', {class:'mission-paper'}, typeOut(h('p', {class:'m', style:'margin:0'}), '이 날은 미션이 없어요.\n오늘은 자유 미션의 날!')));
+  const resTitle = h('div', {}, garland(), h('div', {class:'sec-title no-rule', text:'실행 결과'}));
+  body.append(resTitle);
+  const resBox = h('div');
+  const renderResult = (r) => {
+    resBox.innerHTML = '';
+    if (r && (r.text || r.images?.length)) {
+      (r.images||[]).forEach((src, i) => resBox.append(h('img', {class:'result-img', src, alt:`12월 ${day}일 실행 결과 사진 ${i+1}`})));
+      if (r.text) resBox.append(h('p', {class:'result-txt', text:r.text}));
+    } else resBox.append(h('div', {class:'empty-note', text:'아직 실행 결과가 올라오지 않았어요.'}));
+  };
+  renderResult(result);
+  body.append(resBox);
+  if (api.isOwner()) body.append(ownerEditor(day, result, renderResult, v => { resTitle.hidden = !v; resBox.hidden = !v; }));
+}
+
+function ownerEditor(day, result, onSaved, showView = () => {}){
+  const wrap = h('div', {style:'margin-top:18px'});
+  const has = r => r && (r.text || r.images?.length);
+  const openBtn = h('button', {class:'btn green block', text: has(result) ? '결과 수정하기' : '결과 올리기'});
+  wrap.append(openBtn);
+  openBtn.onclick = () => {
+    openBtn.hidden = true; showView(false);
+    let imgs = [...(result?.images || [])];
+    const ta = h('textarea', {maxlength:1000, placeholder:'어떻게 했는지 적어주세요'}); ta.value = result?.text || '';
+    const thumbs = h('div', {class:'thumbs'});
+    const fileIn = h('input', {type:'file', accept:'image/*', multiple:true, id:'f'+day});
+    const addLbl = h('label', {class:'btn light', for:'f'+day, text:'사진 추가'});
+    const note = h('span', {class:'muted'});
+    const drawThumbs = () => {
+      thumbs.innerHTML = '';
+      imgs.forEach((src, i) => thumbs.append(h('div', {class:'thumb'}, h('img', {src, alt:`사진 ${i+1}`}),
+        h('button', {'aria-label':`사진 ${i+1} 삭제`, text:'✕', onclick:()=>{ imgs.splice(i,1); drawThumbs(); }}))));
+      addLbl.hidden = imgs.length >= MAX_PHOTOS;
+      note.textContent = `${imgs.length} / ${MAX_PHOTOS}장`;
+    };
+    fileIn.onchange = async () => {
+      const files = [...fileIn.files].slice(0, MAX_PHOTOS - imgs.length); fileIn.value = '';
+      if (!files.length) return;
+      note.textContent = '사진 줄이는 중…';
+      for (const f of files){ try { imgs.push(await compressImage(f)); } catch(e){ toast('읽을 수 없는 사진이 있어요'); } }
+      drawThumbs();
+    };
+    drawThumbs();
+    const save = h('button', {class:'btn block', text:'저장'});
+    const cancel = h('button', {class:'btn light block', text:'취소', style:'margin-top:8px'});
+    save.onclick = async () => {
+      busy(save, true);
+      const r = {text:ta.value.trim(), images:imgs};
+      try {
+        await api.saveResult(day, r.text, r.images);
+        result = r; onSaved(r);
+        resultsMeta[day] = {hasText:!!r.text, hasImage:!!r.images.length};
+        refreshHome(false); toast('저장했어요');
+        form.remove(); showView(true); openBtn.hidden = false; openBtn.textContent = has(r) ? '결과 수정하기' : '결과 올리기';
+      } catch(e){ busy(save, false); showErr(e); }
+    };
+    cancel.onclick = () => { form.remove(); showView(true); openBtn.hidden = false; };
+    const form = h('div', {class:'owner-form'},
+      h('div', {class:'sec-title', style:'border-top:0;margin-top:8px', text:'관리자 · 결과 올리기'}),
+      h('div', {class:'field'}, h('label', {text:'사진 (최대 3장)'}), thumbs, h('div', {class:'file-row'}, addLbl, fileIn, note)),
+      h('div', {class:'field'}, h('label', {text:'내용'}), ta),
+      save, cancel);
+    wrap.append(form);
+  };
+  return wrap;
+}
+
+/* 사진 압축: 긴 변 1100px, JPEG — Firestore 문서 1MB 제한 안으로 */
+async function compressImage(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = ()=>res(i); i.onerror = rej; i.src = url; });
+    let max = 1100, q = 0.78, out;
+    for (let tries=0; tries<6; tries++){
+      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      out = c.toDataURL('image/jpeg', q);
+      if (out.length < 750000) return out;
+      max = Math.round(max*0.8); q = Math.max(0.5, q-0.08);
+    }
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* =====================================================================
+   메인 화면
+   ===================================================================== */
+async function refreshHome(fetch=true){
+  if (fetch) { try { resultsMeta = await api.getResultsMeta(); } catch(e){ resultsMeta = {}; } }
+  drawTree();
+  const pct = drawRate(doneCount());
+  $('#rate').setAttribute('aria-label', `미션 달성률 ${pct}% (${doneCount()}/${TOTAL})`);
+}
+function doneCount(){ let n = 0; for (let d=1; d<=TOTAL; d++) { const r = resultsMeta[d]; if (r && (r.hasText||r.hasImage)) n++; } return n; }
+$('#rate').onclick = () => toast(`미션 달성률 ${Math.round(doneCount()/TOTAL*100)}% · ${doneCount()}/${TOTAL}`);
+function goHome(){ show('home'); refreshHome(true); }
+
+/* =====================================================================
+   미션 쓰기
+   ===================================================================== */
+let wIni = null;
+$('#goWrite').onclick = async () => {
+  if (!acceptOpen()) return popup(ERR.CLOSED);
+  wIni = null; $('#w-ini').value = '';
+  $('#w-step1').hidden = false; $('#w-step2').hidden = true; $('#w-done').hidden = true;
+  show('write'); setTimeout(()=>$('#w-ini').focus(), 60);
+};
+$('#w-ini').addEventListener('keydown', e => { if (e.key==='Enter') $('#w-next').click(); });
+$('#w-next').onclick = async () => {
+  const ini = normIni($('#w-ini').value);
+  if (!validIni(ini)) return popup('이니셜은 이름 초성으로 입력해 주세요.\n예: 김철수 → ㄱㅊㅅ');
+  const btn = $('#w-next'); busy(btn, true);
+  try {
+    if (!(await api.isAllowed(ini))) { busy(btn,false); return popup(ERR.NOT_ALLOWED); }
+    const [entry, st] = await Promise.all([api.getEntry(ini), api.getStats()]);
+    busy(btn, false);
+    const n = entry?.missions?.length || 0;
+    if (n >= PER_PERSON) return popup(ERR.LIMIT_PERSON);
+    if (st.taken >= TOTAL) return popup(ERR.FULL);
+    wIni = ini; startWriteForm(entry);
+  } catch(e){ busy(btn,false); showErr(e); }
+};
+function startWriteForm(entry){
+  const n = entry?.missions?.length || 0;
+  $('#w-ini-ro').value = wIni;
+  const last = entry?.missions?.[n-1];
+  $('#w-nick').value = last?.nickname || '';
+  $('#w-text').value = ''; autosize($('#w-text')); $('#w-len').textContent = '0 / 300';
+  $('#w-count-left').textContent = `${n+1}번째 미션 (최대 ${PER_PERSON}개)`;
+  $('#w-step1').hidden = true; $('#w-step2').hidden = false; $('#w-done').hidden = true;
+  setTimeout(()=>($('#w-nick').value ? $('#w-text') : $('#w-nick')).focus(), 60);
+}
+$('#w-text').addEventListener('input', e => $('#w-len').textContent = `${e.target.value.length} / 300`);
+$('#w-submit').onclick = async () => {
+  const nick = $('#w-nick').value.trim(), text = $('#w-text').value.trim();
+  if (!nick) return popup('닉네임을 적어주세요.\n미션지에 이니셜 대신 닉네임이 보여요.');
+  if (!text) return popup('미션 내용을 적어주세요.');
+  const btn = $('#w-submit'); busy(btn, true);
+  try {
+    const count = await api.addMission(wIni, nick, text);
+    busy(btn, false);
+    $('#w-step2').hidden = true; $('#w-done').hidden = false;
+    $('#w-done-msg').textContent = `미션이 접수됐어요\n(${count} / ${PER_PERSON}개 작성)`;
+    $('#w-more').hidden = count >= PER_PERSON;
+    popup('미션은 12월 1일~25일 중 하루에\n랜덤으로 배정돼요.\n\n어느 날 열릴지는 아무도 몰라요!', '미션 접수 완료', 'yellow');
+  } catch(e){ busy(btn, false); showErr(e); }
+};
+$('#w-more').onclick = async () => {
+  try {
+    const [entry, st] = await Promise.all([api.getEntry(wIni), api.getStats()]);
+    if ((entry?.missions?.length||0) >= PER_PERSON) return popup(ERR.LIMIT_PERSON);
+    if (st.taken >= TOTAL) return popup(ERR.FULL);
+    startWriteForm(entry);
+  } catch(e){ showErr(e); }
+};
+
+/* =====================================================================
+   미션 수정하기
+   ===================================================================== */
+let eIni = null;
+$('#goEdit').onclick = () => {
+  if (!acceptOpen()) return popup(ERR.CLOSED);
+  $('#e-ini').value = ''; $('#e-step1').hidden = false; $('#e-list').hidden = true;
+  show('edit'); setTimeout(()=>$('#e-ini').focus(), 60);
+};
+$('#e-ini').addEventListener('keydown', e => { if (e.key==='Enter') $('#e-next').click(); });
+$('#e-next').onclick = async () => {
+  const ini = normIni($('#e-ini').value);
+  if (!validIni(ini)) return popup('이니셜은 이름 초성으로 입력해 주세요.\n예: 김철수 → ㄱㅊㅅ');
+  const btn = $('#e-next'); busy(btn, true);
+  try {
+    if (!(await api.isAllowed(ini))) { busy(btn,false); return popup(ERR.NOT_ALLOWED); }
+    const entry = await api.getEntry(ini); busy(btn, false);
+    if (!entry?.missions?.length) return popup('아직 쓴 미션이 없어요.\n\'미션 쓰기\'에서 먼저 써주세요!', '알림', 'green');
+    eIni = ini; renderEditList(entry);
+  } catch(e){ busy(btn,false); showErr(e); }
+};
+function renderEditList(entry){
+  const list = $('#e-list'); list.innerHTML = '';
+  list.append(h('p', {class:'muted', style:'margin:0 0 12px', text:`${eIni}가 쓴 미션 총 ${entry.missions.length}개`}));
+  entry.missions.forEach((m, i) => list.append(editCard(m, i)));
+  $('#e-step1').hidden = true; list.hidden = false;
+}
+function editCard(m, i){
+  const card = h('div', {class:'mine'});
+  const view = () => {
+    card.innerHTML = '';
+    card.append(
+      h('div', {class:'row'}, h('span', {class:'label', text:`미션 ${i+1}`}), h('span', {class:'nick', text:`from. ${m.nickname}`})),
+      h('div', {class:'txt', text:m.text}),
+      h('div', {class:'actions'}, h('button', {class:'btn green', text:'수정', onclick:edit})));
+  };
+  const edit = () => {
+    if (!acceptOpen()) return popup(ERR.CLOSED);
+    card.innerHTML = '';
+    const nick = h('input', {maxlength:20}); nick.value = m.nickname;
+    const ta = h('textarea', {class:'letter', maxlength:300}); ta.value = m.text;
+    const done = h('button', {class:'btn', text:'수정 완료'});
+    const cancel = h('button', {class:'btn light', text:'취소', onclick:view});
+    done.onclick = async () => {
+      const n = nick.value.trim(), t = ta.value.trim();
+      if (!n || !t) return popup('닉네임과 미션을 모두 적어주세요.');
+      busy(done, true);
+      try { await api.updateMission(eIni, m.slot, n, t); m.nickname = n; m.text = t; toast('수정했어요'); view(); }
+      catch(e){ busy(done, false); showErr(e); }
+    };
+    card.append(
+      h('div', {class:'row'}, h('span', {class:'label', text:`미션 ${i+1}`}), h('span', {class:'muted', text:'수정 중'})),
+      h('div', {class:'field'}, h('label', {text:'이니셜'}), (()=>{ const x = h('input', {readonly:true}); x.value = eIni; return x; })()),
+      h('div', {class:'field'}, h('label', {text:'닉네임'}), nick),
+      h('div', {class:'field', style:'margin-bottom:0'}, h('label', {text:'미션'}), h('div', {class:'letter-wrap'}, ta)),
+      h('div', {class:'actions'}, cancel, done));
+    requestAnimationFrame(() => autosize(ta));
+  };
+  view();
+  return card;
+}
+
+/* =====================================================================
+   지난 어드밴트 캘린더
+   ===================================================================== */
+$('#goArchive').onclick = () => {
+  const box = $('#years'); box.innerHTML = '';
+  const ys = Object.keys(ARCHIVE).sort((a,b)=>b-a);
+  if (!ys.length) box.append(h('div', {class:'empty-note', style:'grid-column:1/-1', text:'아직 등록된 캘린더가 없어요.'}));
+  ys.forEach(y => box.append(h('button', {text:y, onclick:()=>openYear(y)})));
+  show('archive');
+};
+function openYear(y){
+  $('#yearTitle').textContent = `${y} 어드밴트 캘린더`;
+  const list = ARCHIVE[y] || [];
+  $('#yearLead').textContent = `12월 1일부터 25일까지 받은 미션 ${list.filter(Boolean).length}개`;
+  const g = $('#yearGrid'); g.innerHTML = '';
+  for (let d=1; d<=TOTAL; d++){
+    const t = list[d-1] || '';
+    g.append(h('div', {class:'mbox' + (d===25 ? ' star' : '')},
+      h('div', {class:'d'}, h('span', {text:`12/${d}`}), null),
+      h('div', {class:'t', text: t || '—'})));
+  }
+  show('year');
+}
+$('#backYears').onclick = () => show('archive');
+
+/* =====================================================================
+   관리자
+   ===================================================================== */
+let admUnlocked = false;   // 관리자 화면은 들어올 때마다 비밀번호 확인
+$('#goAdmin').onclick = () => { admUnlocked = false; show('admin'); renderAdmin(); };
+function renderAdmin(){
+  const owner = api.isOwner() && admUnlocked;
+  $('#adm-login').hidden = owner; $('#adm-panel').hidden = !owner;
+  if (owner) { loadAdmin(); $('#adm-fold').open = false; } else { $('#adm-pw').value=''; setTimeout(()=>$('#adm-pw').focus(), 60); }
+}
+$('#adm-pw').addEventListener('keydown', e => { if (e.key==='Enter') $('#adm-go').click(); });
+$('#adm-go').onclick = async () => {
+  const btn = $('#adm-go'); busy(btn, true);
+  const ok = await api.ownerLogin($('#adm-pw').value.trim()); busy(btn, false);
+  if (!ok) return popup('비밀번호가 맞지 않아요.');
+  admUnlocked = true; toast('관리자 모드 켜짐'); renderAdmin();
+};
+$('#adm-fold').addEventListener('toggle', () => { if ($('#adm-fold').open) loadMissionList(); });
+$('#adm-out').onclick = async () => { await api.ownerLogout(); toast('관리자 모드 꺼짐'); renderAdmin(); };
+async function loadMissionList(){
+  const box = $('#adm-list');
+  box.innerHTML = ''; box.append(h('p', {class:'muted'}, h('span', {class:'spinner'}), ' 불러오는 중…'));
+  try {
+    const list = (await api.listEntries()).filter(e => e.missions.length).sort((a,b)=>a.ini.localeCompare(b.ini, 'ko'));
+    box.innerHTML = '';
+    if (!list.length) { box.append(h('p', {class:'muted', text:'아직 제출된 미션이 없어요.'})); return; }
+    const tbl = h('table', {class:'mlist'},
+      h('thead', {}, h('tr', {}, h('th', {text:'이니셜'}), h('th', {text:'닉네임'}), h('th', {text:'미션'}))),
+      h('tbody', {}, list.flatMap(e => e.missions.map((m, i) => h('tr', {class: i===0 ? 'first' : ''},
+        h('td', {class:'ini', text: i===0 ? e.ini : ''}), h('td', {text:m.nickname}), h('td', {text:m.text}))))));
+    box.append(tbl, h('p', {class:'muted', style:'margin-top:10px;font-size:12px', text:`총 ${list.reduce((a,e)=>a+e.missions.length,0)}개 · 날짜 배정은 표시하지 않아요`}));
+  } catch(e){ box.innerHTML = ''; box.append(h('p', {class:'muted', text:'불러오지 못했어요.'})); }
+}
+async function loadAdmin(){
+  const stats = $('#adm-stats'), inis = $('#adm-inis');
+  try {
+    const [st, allow] = await Promise.all([api.getStats(), api.listAllowed()]);
+    stats.innerHTML = '';
+    stats.append(
+      h('div', {class:'stat-num'}, `${st.taken}`, h('small', {text:`/ ${TOTAL}칸 채워짐`})),
+      h('div', {class:'bar'}, h('i', {style:`width:${st.taken/TOTAL*100}%`})),
+      h('div', {class:'muted', text:`쓴 사람 ${allow.filter(a=>st.counts[a]).length}명 / 등록 ${allow.length}명 · 마감 11월 30일 24:00`}));
+    inis.innerHTML = '';
+    if (!allow.length) inis.append(h('span', {class:'muted', text:'아직 등록된 이니셜이 없어요.'}));
+    allow.sort().forEach(a => inis.append(h('span', {class:'ini-tag'}, a, h('small', {text:`${st.counts[a]||0}/${PER_PERSON}`}),
+      h('button', {'aria-label':`${a} 삭제`, text:'✕', onclick: async () => {
+        try { await api.removeAllowed(a); toast(`${a} 삭제`); loadAdmin(); } catch(e){ showErr(e); }
+      }}))));
+  } catch(e){ stats.textContent = '불러오지 못했어요. (관리자 계정/규칙 설정을 확인해 주세요)'; }
+}
+$('#adm-new').addEventListener('keydown', e => { if (e.key==='Enter') $('#adm-add').click(); });
+$('#adm-add').onclick = async () => {
+  const ini = normIni($('#adm-new').value);
+  if (!validIni(ini)) return popup('초성 2~4글자로 입력해 주세요. (예: ㄱㅊㅅ)');
+  try { await api.addAllowed(ini); $('#adm-new').value = ''; toast(`${ini} 추가`); loadAdmin(); } catch(e){ showErr(e); }
+};
+
+/* =====================================================================
+   시작
+   ===================================================================== */
+(async function init(){
+  $('#kYear').textContent = CONFIG.YEAR;
+  applyTheme('g3');
+  if (CONFIG.firebase) {
+    try { api = await makeFirebaseBackend(); }
+    catch(e){ console.error(e); toast('Firebase 연결에 실패했어요. 설정을 확인해 주세요.'); return; }
+  } else {
+    api = makeDemoBackend();
+    const bar = $('#demoBar'); bar.hidden = false;
+    const sel = $('#demoDate');
+    const apply = () => { const [y,m,d] = sel.value.split('-').map(Number); demoNow = Date.UTC(y, m-1, d, 3) - KST + 12*3600*1000; };
+    apply();
+    sel.onchange = () => { apply(); goHome(); };
+    $('#demoReset').onclick = () => { api.reset(); toast('데모 데이터 초기화'); goHome(); };
+   
+   
+  }
+  refreshHome(true);
+})();
+</script>
+</body>
+</html>
